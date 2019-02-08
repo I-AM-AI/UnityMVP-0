@@ -334,7 +334,7 @@ public class Neuron : NeuronBase
                     */
                     if(responses[pat]%(ca.rule.max_age/2)==1)//нейрон стреляет не постоянно, а только каждый 1,max_age/2+1,...
                     {
-                        short newval = (short)(GetAge(responses[pat]));
+                        short newval = (short)(GetAge(responses[pat]) + i); //до каждого следующего выхода аксона доходит меньше активности, т.к. 0-ой аксон смамый ранний, он дольше в системе и оброс большим кол-вом швановых клеток, везикул и т.п.
                         short oldval = ca.cell[axon[i].i, axon[i].j, axon[i].k];
                         if(oldval==0)//в КА пустая клетка
                             ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, newval);
@@ -344,14 +344,15 @@ public class Neuron : NeuronBase
                         }
                     }
 
-                    if (responses[pat] > ca.rule.max_age)
-                    {
-                        service.hypophise_NONvaluable++;
-                    }
-                    else
-                    {
-                        service.hypophise_valuable++;
-                    }
+                }
+                //для гипофиза, пока его нет, его функцию заменяют сервисы, отслеживающие активность всей сети
+                if (responses[pat] > ca.rule.max_age)
+                {
+                    service.hypophise_NONvaluable++;
+                }
+                else
+                {
+                    service.hypophise_valuable++;
                 }
 
                 ////////// ЗАПИСЬ В ДНК ЗДЕСЬ!!!!!
