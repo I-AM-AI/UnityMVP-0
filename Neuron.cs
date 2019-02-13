@@ -102,6 +102,28 @@ public class Service
     public const float const_hyppocamp_stop = 200.0f;  //когда процент обученных упал до этого значение, перестаем насильно писать в память
     public const int const_hyppo_ave = 15;          //за сколько циклов усредняем значение параметра обучаемости
 
+    public const short const_spikes_write_DNA = 36;           //ответы начинают запоминаться в ДНК при сигнале выше этого
+    public const short const_spikes_gennew_in = 423;        //количество спайков, при достижении которого добавляется новый синапс
+    public const short const_spikes_gennew_out = 1234;      //количество спайков, при достижении которого добавляется новый выход на аксоне
+    public const short const_spikes_gennew_neuron = 2345;  //количество спайков, при котором рождается новый нейрон
+    public const short const_min = -500;                      //минимальный ответ нейрона
+    public const short const_max = 32000;                  //максимальный ответ нейрона
+
+    public const short const_first_time = -10;               //нейрон впервые видит такой патерн, он не отвечает ничего, но ставит это значение себе в ответ
+    public const short const_dna_search_add = -3;           //При достижении этой отрицательной величины, выдается запрос в ДНК на поиск ответа на этот патерн
+    public const short const_dna_search_dec = -6;           //Если при забывании  ответ достигает этого значения, то ниже опускается только при отсутствии записи в ДНК
+                                                            //в этой версии оно меньше чем АДД, потому что при вспоминании значение из ДНК стирается
+
+    public const short const_del_patern = -100;              //Если при забывании  ответ достигает этого значения, то патерн становится равен 0
+    public const short const_dec_MAP = 1;                    //уменьшить все значения в таблице МАП на эту величину
+    public const short const_MAP_teach_end = 600;            //при достижении этого значения, МАП обучение завершено
+
+    public const short const_dec_by_time = 1;                //с течением времени ответы уменьшаются на эту величину
+
+    public const float const_hypo_divide = 2.0f / 3;          //гипофиз включил подавление торможения - ответы уменьшаются на эту величину
+
+    public const short const_timesLive_before_realign = 5000;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
+
     public Service()
     {
         queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(1000);        
@@ -140,27 +162,6 @@ public class Neuron : NeuronBase
 
     private Service         service;                //сервисы главного модуля, к которым нейрон может обращаться
 
-    const short const_spikes_write_DNA = 36;           //ответы начинают запоминаться в ДНК при сигнале выше этого
-    const short const_spikes_gennew_in = 423;        //количество спайков, при достижении которого добавляется новый синапс
-    const short const_spikes_gennew_out = 1234;      //количество спайков, при достижении которого добавляется новый выход на аксоне
-    const short const_spikes_gennew_neuron = 2345;  //количество спайков, при котором рождается новый нейрон
-    const short const_min = -500;                      //минимальный ответ нейрона
-    const short const_max = 32000;                  //максимальный ответ нейрона
-
-    const short const_first_time = -10;               //нейрон впервые видит такой патерн, он не отвечает ничего, но ставит это значение себе в ответ
-    const short const_dna_search_add = -3;           //При достижении этой отрицательной величины, выдается запрос в ДНК на поиск ответа на этот патерн
-    const short const_dna_search_dec = -6;           //Если при забывании  ответ достигает этого значения, то ниже опускается только при отсутствии записи в ДНК
-                                                     //в этой версии оно меньше чем АДД, потому что при вспоминании значение из ДНК стирается
-
-    const short const_del_patern = -100;              //Если при забывании  ответ достигает этого значения, то патерн становится равен 0
-    const short const_dec_MAP = 1;                    //уменьшить все значения в таблице МАП на эту величину
-    const short const_MAP_teach_end = 600;            //при достижении этого значения, МАП обучение завершено
-
-    const short const_dec_by_time = 1;                //с течением времени ответы уменьшаются на эту величину
-
-    const float const_hypo_divide = 2.0f / 3;          //гипофиз включил подавление торможения - ответы уменьшаются на эту величину
-
-    const short const_timesLive_before_realign = 1000;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
 
     public override char GetTypeNeuron() { return 'c'; }
     //конструктор случайного нейрона
@@ -282,7 +283,7 @@ public class Neuron : NeuronBase
 
         if(responses[pat]==0)//ответа в ОЗУ на этот паттерн нет
         {
-            responses[pat] = const_first_time;//а теперь есть
+            responses[pat] = Service.const_first_time;//а теперь есть
             //Debug.Log(number + "Виден впервые такой паттерн");
             if (!service.decdecdec)//если нет торможения торможения
                 ImPassive(syn_on, pat);
@@ -301,7 +302,7 @@ public class Neuron : NeuronBase
                 is_have_any_response = true;
                 if (service.decdecdec && responses[pat]>ca.rule.max_age)//система перетренирована-все положительные значения больше максимального КА, уменьшаются
                 {
-                    responses[pat] = (short)(responses[pat] * const_hypo_divide) ;
+                    responses[pat] = (short)(responses[pat] * Service.const_hypo_divide) ;
                 }
 
                 //добавляем в очереди групп МАП метку времени и номер нейрона
@@ -356,7 +357,7 @@ public class Neuron : NeuronBase
                 }
 
                 ////////// ЗАПИСЬ В ДНК ЗДЕСЬ!!!!!
-                if (responses[pat]==const_spikes_write_DNA & !service.decdecdec)//достигли порога записи в ДНК
+                if (responses[pat]== Service.const_spikes_write_DNA & !service.decdecdec)//достигли порога записи в ДНК
                 {
                     if((responses_DNA_flags[pat] & 0b1000) > 0) //если уже не ждем запись
                     {
@@ -375,7 +376,7 @@ public class Neuron : NeuronBase
                     responses_DNA_flags[pat] |= 0b1000; //ждем запись
                 }
                    
-                if (responses[pat] % const_spikes_gennew_in == 0 & !service.decdecdec)//добавляем синапс в нейрон
+                if (responses[pat] % Service.const_spikes_gennew_in == 0 & !service.decdecdec)//добавляем синапс в нейрон
                 {
                     responses[pat] += 50; //потому что забывание и торможение может снова включить добавление синапса
                     Debug.Log("НЕЙРОН №" + number + "новый синапс!");
@@ -395,7 +396,7 @@ public class Neuron : NeuronBase
                     }
                 }
 
-                if (responses[pat] % const_spikes_gennew_out == 0 & !service.decdecdec)//добавляем выход к аксону
+                if (responses[pat] % Service.const_spikes_gennew_out == 0 & !service.decdecdec)//добавляем выход к аксону
                 {
                     responses[pat] += 100; //потому что забывание и торможение может снова включить добавление аксона
                     Debug.Log("НЕЙРОН №" + number + "новый аксон!");
@@ -416,7 +417,7 @@ public class Neuron : NeuronBase
 
                 }
 
-                if (responses[pat] % const_spikes_gennew_neuron == 0 & !service.decdecdec)//добавляем нейрон в систему
+                if (responses[pat] % Service.const_spikes_gennew_neuron == 0 & !service.decdecdec)//добавляем нейрон в систему
                 {
                     responses[pat] += 500; //потому что забывание и торможение может снова включить добавление нейрона
                     Debug.Log("НЕЙРОН №" + number + "новый нейрон!");
@@ -426,7 +427,7 @@ public class Neuron : NeuronBase
             }
             else
             {
-                if(responses[pat] == const_dna_search_add)//ответ достиг порога запроса поиска ответа в ДНК
+                if(responses[pat] == Service.const_dna_search_add)//ответ достиг порога запроса поиска ответа в ДНК
                 {
                     //если бита запроса еще не стоит
                     if ((short)(responses_DNA_flags[pat] & 0b10) != 0b10)
@@ -485,10 +486,10 @@ public class Neuron : NeuronBase
         int count_syn_teached = 0;
         foreach(int syn in syn_on)
         {
-            MAPtable[syn] -= const_dec_MAP;
+            MAPtable[syn] -= Service.const_dec_MAP;
             if (MAPtable[syn] < 0) MAPtable[syn] = 0;
             MAPtable[syn] += force;
-            if (MAPtable[syn] >= const_MAP_teach_end) count_syn_teached++;
+            if (MAPtable[syn] >= Service.const_MAP_teach_end) count_syn_teached++;
         }
 
         if (count_syn_teached == syn_on.Count)//нейрон обучился
@@ -498,7 +499,7 @@ public class Neuron : NeuronBase
             responses[p] = pow_ave;
             foreach (int syn in syn_on)
             {
-                MAPtable[syn] = const_MAP_teach_end/2;
+                MAPtable[syn] = Service.const_MAP_teach_end /2;
             }
             //запишем в ДНК результат обучения
             service.queQueryToDnaWrite.Enqueue(new structDNAWriteQueue(number, p, responses[p]));
@@ -517,19 +518,19 @@ public class Neuron : NeuronBase
         {
             if (responses[i] != 0)//если ответ вообще существует
             {
-                if (responses[i] < const_dna_search_dec)//если он уже меньше критического - продолжаем уменьшать
+                if (responses[i] < Service.const_dna_search_dec)//если он уже меньше критического - продолжаем уменьшать
                 {
-                    responses[i] = (short)(responses[i] - const_dec_by_time);
-                    if(responses[i] < const_del_patern)//ответ совсем низкий, удаляем его, ведь его нет и в ДНК
+                    responses[i] = (short)(responses[i] - Service.const_dec_by_time);
+                    if(responses[i] < Service.const_del_patern)//ответ совсем низкий, удаляем его, ведь его нет и в ДНК
                     {
                         //Debug.Log(number + "Ответ удален.");
                         responses[i] = 0;
                     }
                     continue;
                 }
-                short rep = (short)(responses[i] - const_dec_by_time);
+                short rep = (short)(responses[i] - Service.const_dec_by_time);
                 if (rep == 0) responses[i] = -1; //0 ответа не бывает
-                else if(rep < const_dna_search_dec)//ответ только что стал меньше константы, при которой происходит запрос на поиск
+                else if(rep < Service.const_dna_search_dec)//ответ только что стал меньше константы, при которой происходит запрос на поиск
                 {//уменьшение достигло критического уровня, нужно спросить, есть ли ответ в ДНК. И если есть, ниже не понижать
                     if((byte)(responses_DNA_flags[i] & 0b100)>0)
                     {//из ДНК пришел ответ, что значение не удалось найти, понижайте нафик
@@ -555,7 +556,7 @@ public class Neuron : NeuronBase
     public void Realign()//нейрон ничему не обучился, ни один его ответ не записан в ДНК, он бесполезен, ему надо поменять синапсы и выходы
     {
         if (is_have_any_response) return;
-        else if (++chancetoteech < const_timesLive_before_realign) return;//все еще есть шанс обучится
+        else if (++chancetoteech < Service.const_timesLive_before_realign) return;//все еще есть шанс обучится
 
         chancetoteech = 0;
         Debug.Log("Меняем нейрону "+ number+" синапсы и аксон");

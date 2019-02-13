@@ -39,9 +39,11 @@ public class Gen : MonoBehaviour
 
     private PianoOut po;
 
+    
+
     void Start()
     {
-
+       
         dropdown.ClearOptions();
         dropdown.AddOptions(new List<string>( Microphone.devices));
 
@@ -79,6 +81,7 @@ public class Gen : MonoBehaviour
 
     void Update()
     {
+
         string sinfo;
 
         if (run)
@@ -102,43 +105,69 @@ public class Gen : MonoBehaviour
 
     }
 
-    uint ceur_bit = 12;
+    uint ceur_bit = 0;
     uint breathe_bit = 18;
 
     private void FixedUpdate()
     {
         if (run)
         {
-            //ритмы сердца и дыхания
-            if(++ceur_bit%12==0) { ca.cell[3, 3, 3] = 1; ca.cell[3, 3, 4] = 1; ca.cell[3, 3, 5] = 1; ca.cell[3, 4, 4] = 1; }
-            
-            if (++breathe_bit % 18 == 0) { ca.cell[1, 4, 4] = 1; ca.cell[1, 4, 5] = 1; ca.cell[1, 4, 6] = 1; ca.cell[1, 5, 5] = 1; }
-            
+                     
 
             Step();
 
             n.Do();
+
+            //ритмы сердца и дыхания
+            if (++ceur_bit % 12 == 0) {
+                ca.cell[53, 13, 3] = 1; ca.cell[53, 13, 4] = 1; ca.cell[53, 13, 5] = 1; ca.cell[53, 14, 4] = 1;
+                ca.cell[53, 12, 3] = 1; ca.cell[53, 12, 4] = 1; ca.cell[53, 12, 5] = 1; ca.cell[53, 11, 4] = 1;
+            }
+
+            if (++breathe_bit % 18 == 0) { ca.cell[51, 4, 4] = 1; ca.cell[51, 4, 5] = 1; ca.cell[51, 4, 6] = 1; ca.cell[51, 5, 5] = 1; }
 
         }
     }
 
     private void PlayMusic()
     {
-        float p1 = 0.0f;
+        
         float volume=0.0f;
 
-        for (int i =1; i< lenght / 2; i++)
+        for (int i =30; i<= 40; i++)
         {
             volume = volume + ca.cell[i, height / 2, width / 2] * 3 + ca.cell[i, height / 2 + 1, width / 2] + ca.cell[i, height / 2 - 1, width / 2];
                 //+ca.cell[i, height / 2 + 2, width / 2] + ca.cell[i, height / 2 - 2, width / 2];   
         }
 
         volume = (Mathf.Log10(Mathf.Log(volume)) - 0.45f) * 7f;
-        textDebug.text = "volume: " + volume.ToString();
-        if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
         
+        //if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
+        string blabla = "";
+        if(volume>0.15)
+        {//говорит и показыват КА
+           
 
+            for(int i=30;i<=40;i++)
+            {
+                int v = 0;
+                for(int j=1;j<49;j++)
+                    for (int k=1;k<49;k++)
+                    {
+                        v += ca.cell[i, j, k];
 
+                    }
+                v = v % (122 - 97) + 97;
+                byte[] b = { (byte)v };
+                blabla += System.Text.Encoding.ASCII.GetString(b);
+            }
+
+            WindowsVoice.speak(blabla);
+            
+        }
+        textDebug.text = "bla: " + blabla;
+        /*
+        float p1 = 0.0f;
         if (volume > 0.05)
         {
             for (int i=1;i<lenght-1 ;i++)
@@ -151,7 +180,7 @@ public class Gen : MonoBehaviour
             if (p1 > 95) p1 = 95; else if (p1 < 0) p1 = 0;
             po.PlayNote((byte)p1, volume);
         }
-
+        */
     }
 
     private void Step()
@@ -205,7 +234,7 @@ public class Gen : MonoBehaviour
 
     public void ButtonStep_Click()
     {
-        if(run)run = false;
+        if (run)run = false;
         else Step();
     }
 
@@ -270,13 +299,13 @@ public class Gen : MonoBehaviour
     }
     public void ButtonDrawRnd_Click()
     {
-        run = false;
+        
 
         for (short i = 0; i < lenght; i++)
         {
             for (short j = 0; j < height; j++)
             {
-                for (short k = 0; k < width; k++)
+                short k = 1;
                 {
                     
                     float al = Random.Range(0f, ca.rule.max_age);
@@ -290,13 +319,14 @@ public class Gen : MonoBehaviour
     }
     public void ButtonDrawCube_Click()
     {
-        run = false;
+        
 
-        for (short i = 0; i < 2; i++)
+        for (short i = 0; i < lenght/2; i++)
         {
-            for (short j = 0; j < 2; j++)
+            for (short j = 0; j < height; j++)
             {
-                for (short k = 0; k < 2; k++)
+                short k = 1;
+                if(j%3==1)
                 {
                     ca.ChangeAge(i, j, k, 1);
                     objects[i, j, k].GetComponent<MeshRenderer>().material.color = new Color(1.0f, 0, 0, 1f);
