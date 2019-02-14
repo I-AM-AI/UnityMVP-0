@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using System.Linq;
+using System.Threading;
 
 namespace CellularAutamata
 { 
@@ -157,6 +158,7 @@ namespace CellularAutamata
                     }
                 }
             }
+            
             cell = next;//и теперь массив ссылается сюда 
         }
 
@@ -164,10 +166,11 @@ namespace CellularAutamata
 
     public class CellularAutamata3D : CellularAutamata3DBase
     {
-		
-		
+        Thread myThread;
+        private readonly object syncObject = new object();
+
         //конструктор длина,ширина,высота коробки, правило эволюции
-		public CellularAutamata3D(short l, short h, short w, string r)
+        public CellularAutamata3D(short l, short h, short w, string r)
 		{
 			lenght = l;
 			height = h;
@@ -176,8 +179,9 @@ namespace CellularAutamata
 			cell = new short[l,h,w];
             //for (short i = 0; i < l; i++) for (short j = 0; j < h; j++) for (short k = 0; k < w; k++) cell[i, j, k] = 0;
 			rule = new Rule(r);
-						
-		}
+
+            myThread = new Thread(new ThreadStart(NextStepThread));
+        }
 
         //меняем в заданной клетке возвраст руками
         //возвращаем 0 если удачно
@@ -194,10 +198,11 @@ namespace CellularAutamata
 
         public short ChangeAgeByNeuron(short i, short j, short k, short val)//нейрон прыскает сюда нейромедиатор
         {
+            System.Random getrandom = new System.Random();
             //выбираем случайного соседа, куда он немного разольется
-            int ii = Random.Range(-1, 2);
-            int jj = Random.Range(-1, 2);
-            int kk = Random.Range(-1, 2);
+            int ii = getrandom.Next(-1, 2);
+            int jj = getrandom.Next(-1, 2);
+            int kk = getrandom.Next(-1, 2);
             if (ii == 0 && jj == 0 && kk == 0) kk = 1;//чтобы не сама клетка
             ii = i + ii; jj = j + jj; kk = k + kk;
             if (ii < 0) ii = lenght + ii;
@@ -212,8 +217,16 @@ namespace CellularAutamata
 
             return 0;
         }
-
         public override void NextStep()
+        {
+            if(!myThread.IsAlive)
+            {               
+                myThread = new Thread(new ThreadStart(NextStepThread));
+                myThread.Start();
+            }
+            
+        }
+        public void NextStepThread()
         {
             //строим новый массив значений
             short[,,] next = new short[lenght, height, width];
@@ -248,7 +261,10 @@ namespace CellularAutamata
                     }
                 }
             }
-            cell = next;//и теперь массив ссылается сюда 
+            //lock (syncObject)//для мультитрединга
+            {
+                cell = next;//и теперь массив ссылается сюда 
+            }
         }
 
         private byte CountNeigh(short i,short j,short k)

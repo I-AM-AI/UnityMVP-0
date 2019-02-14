@@ -86,8 +86,10 @@ public class Gen : MonoBehaviour
 
         if (run)
         {
+            n.Do();
             //играем музыку
             PlayMusic();
+
             n.DoServices();
 
             int hyyy = (n.service.hyppocamp_value * 1 / Service.const_hyppo_ave + n.service.hyppocamp_prev * (Service.const_hyppo_ave - 1) / Service.const_hyppo_ave);
@@ -112,11 +114,12 @@ public class Gen : MonoBehaviour
     {
         if (run)
         {
-                     
+            
+            
 
             Step();
 
-            n.Do();
+            
 
             //ритмы сердца и дыхания
             if (++ceur_bit % 12 == 0) {
@@ -136,36 +139,37 @@ public class Gen : MonoBehaviour
 
         for (int i =30; i<= 40; i++)
         {
-            volume = volume + ca.cell[i, height / 2, width / 2] * 3 + ca.cell[i, height / 2 + 1, width / 2] + ca.cell[i, height / 2 - 1, width / 2];
-                //+ca.cell[i, height / 2 + 2, width / 2] + ca.cell[i, height / 2 - 2, width / 2];   
+            for (int j=height/2-10;j<height/2+10;j++)
+                volume = volume + ca.cell[i, j, width / 2] * 3+ ca.cell[i, j, width / 2-1]+ ca.cell[i, j, width / 2+1];   
         }
+        if (volume < 1) volume = 0;        
+        else volume = (Mathf.Log(Mathf.Log(volume)) ) * 12f;
 
-        volume = (Mathf.Log10(Mathf.Log(volume)) - 0.45f) * 7f;
-        
         //if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
-        string blabla = "";
-        if(volume>0.15)
+        string blabla="";
+        if (volume>0.05)
         {//говорит и показыват КА
-           
 
-            for(int i=30;i<=40;i++)
+            byte[] b = new byte[12];
+            for (int i=29;i<=40;i++)
             {
                 int v = 0;
-                for(int j=1;j<49;j++)
-                    for (int k=1;k<49;k++)
+                for(int j=1;j<height-1;j++)
+                    for (int k=1;k<width-1;k++)
                     {
                         v += ca.cell[i, j, k];
 
                     }
                 v = v % (122 - 97) + 97;
-                byte[] b = { (byte)v };
-                blabla += System.Text.Encoding.ASCII.GetString(b);
+                b[i-29]=  (byte)v;
+                
             }
-
+            blabla = System.Text.Encoding.ASCII.GetString(b);
+            Debug.Log(blabla);
             WindowsVoice.speak(blabla);
             
         }
-        textDebug.text = "bla: " + blabla;
+        textDebug.text = "v: "+ volume.ToString() + " bla: " + blabla;
         /*
         float p1 = 0.0f;
         if (volume > 0.05)

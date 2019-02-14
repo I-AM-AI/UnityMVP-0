@@ -63,15 +63,15 @@ public class FixedSizedQueueConcurent<T> : ConcurrentQueue<T>
 }
 public class MAPQueue
 {
-    public FixedSizedQueue<structMAPqueue>[] que;
+    public FixedSizedQueueConcurent<structMAPqueue>[] que;
 
     public MAPQueue()
     {
-        que = new FixedSizedQueue<structMAPqueue>[256];
+        que = new FixedSizedQueueConcurent<structMAPqueue>[256];
         //их все надо родить
         for(int i=0;i<256;i++)
         {
-            que[i] = new FixedSizedQueue<structMAPqueue>(20);//количество публикаций в мап-очедерях ограниченно 20
+            que[i] = new FixedSizedQueueConcurent<structMAPqueue>(20);//количество публикаций в мап-очедерях ограниченно 20
         }
     }
 }
@@ -124,6 +124,18 @@ public class Service
 
     public const short const_timesLive_before_realign = 5000;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
 
+
+    public float Time_realtimeSinceStartup;
+
+    private static readonly System.Random getrandom = new System.Random();
+    public static int RandomRange(int min, int max)
+    {
+        lock (getrandom) // synchronize
+        {
+            return getrandom.Next(min, max);
+        }
+    }
+
     public Service()
     {
         queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(1000);        
@@ -172,9 +184,9 @@ public class Neuron : NeuronBase
         synapses = new Coord[16];       //у нерйона максимум 16 синапсов 
         for(int i=0;i<6;i++)            //сделаем 6 синапсов в случайных местах коробки
         {
-            synapses[i].i = (short)(Random.Range(0, ca.lenght));
-            synapses[i].j = (short)(Random.Range(0, ca.height));
-            synapses[i].k = (short)(Random.Range(0, ca.width));
+            synapses[i].i = (short)(Service.RandomRange(0, ca.lenght));
+            synapses[i].j = (short)(Service.RandomRange(0, ca.height));
+            synapses[i].k = (short)(Service.RandomRange(0, ca.width));
 
             //синапс 0,0,0 - служебный, у него нет нейронов
             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
@@ -184,16 +196,16 @@ public class Neuron : NeuronBase
 
         axon = new Coord[16];           //максимум нейрон может повлиять на 16 ячеек
         //у нового нейрона пока только один выход, сгенерируем его местоположение в коробке
-        axon[0].i = (short)(Random.Range(0, ca.lenght));
-        axon[0].j = (short)(Random.Range(0, ca.height));
-        axon[0].k = (short)(Random.Range(0, ca.width));
+        axon[0].i = (short)(Service.RandomRange(0, ca.lenght));
+        axon[0].j = (short)(Service.RandomRange(0, ca.height));
+        axon[0].k = (short)(Service.RandomRange(0, ca.width));
 
         //рожаем номера групп для МАП
-        int countMAP=Random.Range(1, 16); //количество групп
+        int countMAP=Service.RandomRange(1, 16); //количество групп
         MAPa = new short[countMAP];
         for(int i=0;i<countMAP;i++)
         {
-            MAPa[i]= (short)(Random.Range(0, 255)); //номер группы
+            MAPa[i]= (short)(Service.RandomRange(0, 255)); //номер группы
         }
 
         mapQue = mq;//ссылка на очереди МАП
@@ -230,11 +242,11 @@ public class Neuron : NeuronBase
 
 
         //рожаем номера групп для МАП
-        int countMAP = Random.Range(1, 16); //количество групп
+        int countMAP = Service.RandomRange(1, 16); //количество групп
         MAPa = new short[countMAP];
         for (int i = 0; i < countMAP; i++)
         {
-            MAPa[i] = (short)(Random.Range(0, 255)); //номер группы
+            MAPa[i] = (short)(Service.RandomRange(0, 255)); //номер группы
         }
 
         mapQue = mq;
@@ -245,7 +257,7 @@ public class Neuron : NeuronBase
 
     public short GetActivityForMAP(float time, int power)
     {
-        float delta = Time.realtimeSinceStartup - time;
+        float delta = service.Time_realtimeSinceStartup - time;
         float pd = power / delta/10;
         if (pd < 1) pd = 1;
         else if (pd > 128) pd = 128;
@@ -308,7 +320,7 @@ public class Neuron : NeuronBase
                 //добавляем в очереди групп МАП метку времени и номер нейрона
                 foreach (short m in MAPa)//m пробегает номера групп, в которых нейрон строит ассоциации
                 {
-                    mapQue.que[m].Enqueue(new structMAPqueue(number, Time.realtimeSinceStartup, responses[pat]));
+                    mapQue.que[m].Enqueue(new structMAPqueue(number, service.Time_realtimeSinceStartup, responses[pat]));
                 }
 
                 //рисуем в клеточном автомате по всем выходам аксона
@@ -384,9 +396,9 @@ public class Neuron : NeuronBase
                     {
                         if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) //синапса нет такого еще
                         {
-                            synapses[i].i = (short)(Random.Range(0, ca.lenght));
-                            synapses[i].j = (short)(Random.Range(0, ca.height));
-                            synapses[i].k = (short)(Random.Range(0, ca.width));
+                            synapses[i].i = (short)(Service.RandomRange(0, ca.lenght));
+                            synapses[i].j = (short)(Service.RandomRange(0, ca.height));
+                            synapses[i].k = (short)(Service.RandomRange(0, ca.width));
 
                             //синапс 0,0,0 - служебный, у него нет нейронов
                             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
@@ -404,9 +416,9 @@ public class Neuron : NeuronBase
                     {
                         if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) //аксона нет такого еще
                         {
-                            axon[i].i = (short)(Random.Range(0, ca.lenght));
-                            axon[i].j = (short)(Random.Range(0, ca.height));
-                            axon[i].k = (short)(Random.Range(0, ca.width));
+                            axon[i].i = (short)(Service.RandomRange(0, ca.lenght));
+                            axon[i].j = (short)(Service.RandomRange(0, ca.height));
+                            axon[i].k = (short)(Service.RandomRange(0, ca.width));
 
                             //синапс 0,0,0 в КА - служебный, у него нет нейронов
                             if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) axon[i].k = 1;
@@ -474,7 +486,14 @@ public class Neuron : NeuronBase
         {
             if (mapQue.que[m].Count > 0)
             {
-                structMAPqueue smapque = mapQue.que[m].Dequeue();
+                structMAPqueue smapque = new structMAPqueue();
+                while (!mapQue.que[m].TryDequeue(out smapque))
+                {
+                    if (mapQue.que[m].Count == 0)//потому что в другом потоке считали все, пока мы пытались это сделать
+                    {
+                        smapque.power = 0;
+                    }
+                }
                 if (mapQue.que[m].Count > 0)
                     force += GetActivityForMAP(smapque.timestamp, smapque.power);//функция вернет значение силы реакции ассоциированного нейрона            
                 pow_ave += (short)smapque.power;
@@ -563,18 +582,18 @@ public class Neuron : NeuronBase
 
         for (int i = 0; i < 6; i++)            //сделаем 6 синапсов в случайных местах коробки
         {
-            synapses[i].i = (short)(Random.Range(0, ca.lenght));
-            synapses[i].j = (short)(Random.Range(0, ca.height));
-            synapses[i].k = (short)(Random.Range(0, ca.width));
+            synapses[i].i = (short)(Service.RandomRange(0, ca.lenght));
+            synapses[i].j = (short)(Service.RandomRange(0, ca.height));
+            synapses[i].k = (short)(Service.RandomRange(0, ca.width));
 
             //синапс 0,0,0 - служебный, у него нет нейронов
             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
         }
        
         //у нового нейрона пока только один выход, сгенерируем его местоположение в коробке
-        axon[0].i = (short)(Random.Range(0, ca.lenght));
-        axon[0].j = (short)(Random.Range(0, ca.height));
-        axon[0].k = (short)(Random.Range(0, ca.width));
+        axon[0].i = (short)(Service.RandomRange(0, ca.lenght));
+        axon[0].j = (short)(Service.RandomRange(0, ca.height));
+        axon[0].k = (short)(Service.RandomRange(0, ca.width));
     }
 }
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using CellularAutamata;
+using System.Threading;
 
 public class NeuroNet//рабочий класс - обертка, он создает не любую сеть, а только конкретную
 {
@@ -14,6 +15,8 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
     public CellularAutamata3D ca;
 
+    Thread myThread;
+
     //сеть из готовых данных (из ДНК)
     public NeuroNet(ref CellularAutamata3D cla, ref Service s, ref MAPQueue mpq, ref List<Neuron> ln, ref DNA d)
     {
@@ -22,6 +25,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
         ca = cla;
         nn = ln;
         dna = d;
+        myThread = new Thread(new ThreadStart(DoNeuronsThread));
     }
 
     public NeuroNet(ref CellularAutamata3D cla)//рожаем произвольную сеть
@@ -170,6 +174,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
         dna = new DNA(ref nn,ref service);
 
+        myThread = new Thread(new ThreadStart(DoNeuronsThread));
     }
 
 
@@ -191,22 +196,36 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
     public void Do()
     {
-
-        //foreach (Neuron n in nn)
-        for(int i=0;i<nn.Count;i++)
+        if (!myThread.IsAlive)
         {
-            nn[i].Do();
-            if (Random.Range(0, 10) > 5) nn[i].ForgotRAM();//приблизительно x случайных нейронов забывает потихоньку 
-            else if (Random.Range(0, 10) > 6)
-            {
-                if(!service.decdecdec && ! service.dnadnadna)
-                    nn[i].Realign();//и еще меньше x случайных нейронов перестраивают входы и выходы, если не обчулись до сих пор
-            }
+            myThread = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread.Start();
         }
     }
 
+    private void DoNeuronsThread()
+    {
+        //foreach (Neuron n in nn)
+        for (int i = 0; i < nn.Count; i++)
+        {
+
+            nn[i].Do();
+
+            if (Service.RandomRange(0, 10) > 5) nn[i].ForgotRAM();//приблизительно x случайных нейронов забывает потихоньку 
+            else if (Service.RandomRange(0, 10) > 6)
+            {
+                if (!service.decdecdec && !service.dnadnadna)
+                    nn[i].Realign();//и еще меньше x случайных нейронов перестраивают входы и выходы, если не обчулись до сих пор
+            }
+        }
+
+    }
+
+    //private void Do
     public void DoServices()
     {
+        service.Time_realtimeSinceStartup = Time.realtimeSinceStartup;
+
         if (service.decdecdec)//если включено торможение, проверяем, не пора ли выключить
         {
             if (service.hypophise_NONvaluable * 1.0f / (service.hypophise_valuable + service.hypophise_NONvaluable) 
