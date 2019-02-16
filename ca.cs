@@ -169,6 +169,8 @@ namespace CellularAutamata
         Thread myThread;
         private readonly object syncObject = new object();
 
+        public FixedSizedQueueConcurent<Coord> queChangeAge;
+
         //конструктор длина,ширина,высота коробки, правило эволюции
         public CellularAutamata3D(short l, short h, short w, string r)
 		{
@@ -180,7 +182,26 @@ namespace CellularAutamata
             //for (short i = 0; i < l; i++) for (short j = 0; j < h; j++) for (short k = 0; k < w; k++) cell[i, j, k] = 0;
 			rule = new Rule(r);
 
+            queChangeAge = new FixedSizedQueueConcurent<Coord>(10000);
+
             myThread = new Thread(new ThreadStart(NextStepThread));
+           
+        }
+
+        //функция потока чтения очереди на запись значений в ячейки
+        public void queChangeAgeFunc()
+        {
+            if (!stepfinished) return;
+            if (queChangeAge.Count > 0)//пока общитывали коробку, нейроны напердели что-то, будем разгребать
+            {
+                Coord coo = new Coord();
+                while (queChangeAge.Count > 0)
+                {
+                    if (!stepfinished) return;
+                    if (queChangeAge.TryDequeue(out coo))
+                        cell[coo.i, coo.j, coo.k] = (short)coo.v;
+                }
+            }
         }
 
         //меняем в заданной клетке возвраст руками
@@ -192,8 +213,25 @@ namespace CellularAutamata
             else if (i < 0 || j < 0 || k < 0) return -2;
             else if (i >= lenght || j >= height || k >= width) return 2;
 
-            cell[i, j, k] = val;
+            //lock (syncObject)//для мультитрединга
+            if (stepfinished)//если прошел персчет значений по всему автомату - можем обновлять прямо
+            {
+                cell[i, j, k] = val;
+                queChangeAgeFunc();
+            }
+            else
+            {
+                Coord coo = new Coord(); coo.i = i; coo.j = j; coo.k = k; coo.v = (ushort)val;
+                queChangeAge.Enqueue(coo);
+            }
             return 0;
+        }
+
+        public void ChangeAgeFast(short i, short j, short k, short val)
+        {
+           
+                cell[i, j, k] = val;
+           
         }
 
         public short ChangeAgeByNeuron(short i, short j, short k, short val)//нейрон прыскает сюда нейромедиатор
@@ -212,29 +250,45 @@ namespace CellularAutamata
             if (jj > height - 1) jj = height - jj;
             if (kk > width - 1) kk = width - kk;
 
-            cell[i, j, k] = val;
-            cell[ii, jj, kk] = (short)(rule.max_age-1);//а в случайного соседа немного нейромедиатора (хватит на один цикл КА)
+            //lock (syncObject)//для мультитрединга
+            if(stepfinished)//если прошел персчет значений по всему автомату - можем обновлять прямо
+            {
+                cell[i, j, k] = val;
+                cell[ii, jj, kk] = (short)(rule.max_age - 1);//а в случайного соседа немного нейромедиатора (хватит на один цикл КА)
+                queChangeAgeFunc();
+            }
+            else//сейчас идет обновление значений по всему автомату - добавим в очередь на пересчет
+            {
+                Coord coo = new Coord(); coo.i = i;coo.j = j;coo.k = k;coo.v = (ushort)val;
+                queChangeAge.Enqueue(coo);
+                Coord coo2 = new Coord(); coo2.i = i; coo2.j = j; coo2.k = k; coo2.v = (ushort)(rule.max_age - 1);
+                queChangeAge.Enqueue(coo2);
 
+            }
             return 0;
         }
         public override void NextStep()
         {
-            if(!myThread.IsAlive)
-            {               
+            
+            if (!myThread.IsAlive)
+            {                
                 myThread = new Thread(new ThreadStart(NextStepThread));
                 myThread.Start();
             }
             
         }
+        bool stepfinished=false;
         public void NextStepThread()
         {
+            
+            stepfinished = false;            
             //строим новый массив значений
             short[,,] next = new short[lenght, height, width];
             for(short i=0;i<lenght;i++)
             {
                 for(short j=0;j<height;j++)
                 {
-                    for (short k = 0; k < width;k++)
+                    for (short k = 1; k < width-1;k++)//1;-1 - потому что там входы микрофона
                     {
                         byte n = CountNeigh(i, j, k);//кол-во живых соседей
                         if (rule.CheckBorn(n))
@@ -263,8 +317,15 @@ namespace CellularAutamata
             }
             //lock (syncObject)//для мультитрединга
             {
+                for (short i = 0; i < lenght; i++)
+                    for (short j = 0; j < height; j++)
+                    { next[i, j, 0] = cell[i, j, 0]; next[i, j, width-1] = cell[i, j, width - 1]; } //пока обновляли коробку, данные с микрофона могли измениться
+
                 cell = next;//и теперь массив ссылается сюда 
-            }
+            }           
+
+            stepfinished = true;
+            queChangeAgeFunc();
         }
 
         private byte CountNeigh(short i,short j,short k)

@@ -182,6 +182,17 @@ public class DNA
         return false; //не могу прочитать очередь или в очереди нет ничего
     }
 
+    public void WriteDebug(string debugText="", int debugInt=0, float debugFloat = 0, string comment="")
+    {
+        dbcmd = dbconn.CreateCommand();
+        string sqlQuery = "INSERT INTO DEBUGING (debugText, debugInt, debugFloat, comment) VALUES ('" + debugText + "', "
+                                                                            + debugInt.ToString() + ", " 
+                                                                            + debugFloat.ToString() + ", '"
+                                                                            + comment + "')";
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
+    }
+
     public void Delete(int count)
     {
         dbcmd = dbmemory.CreateCommand();
@@ -302,7 +313,11 @@ public class DNA
             {
                 nn.Add(new Neuron(nnumber, ref cla, syns, axs, ref mq, ref s));
             }
-            
+            else if (nt == 'd')//суммирующий, дендритопёрдный
+            {
+                nn.Add(new NeuronDendSpike(nnumber, ref cla, syns, axs, ref mq, ref s));
+            }
+
         }
 
         Debug.Log("Считано нейронов: " + nn.Count);

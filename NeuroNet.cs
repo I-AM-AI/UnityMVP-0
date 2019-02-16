@@ -10,7 +10,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
     List<Neuron> nn;
     
     public Service service;
-    DNA dna;
+    public DNA dna;
     MAPQueue mq;
 
     public CellularAutamata3D ca;

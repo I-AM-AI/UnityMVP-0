@@ -7,6 +7,7 @@ using CellularAutamata;
 public struct Coord
 {
     public short i, j, k;//координата синапса
+    public ushort v;//сулжебное, сейчас используется для вычисления выперда дендритного спайка
 }
 
 public struct structMAPqueue
@@ -98,11 +99,11 @@ public class Service
     public int hyppocamp_value { get; set; }    //когда нейрон обучился (через ОЗУ или метоботропно) он увеличивает это значение                                                
     public int hyppocamp_prev { get; set; }    //предыдущее значение 
     public bool dnadnadna { get; set; }         //действие гормона гиппокампа "пишем все в ДНК"
-    public const float const_hyppocamp_start = 50.0f; //когда среднее будет больше этого за единицу времени - посылаем нейромедиатор принудительного запоминания
+    public const float const_hyppocamp_start = 40.0f; //когда среднее будет больше этого за единицу времени - посылаем нейромедиатор принудительного запоминания
     public const float const_hyppocamp_stop = 200.0f;  //когда процент обученных упал до этого значение, перестаем насильно писать в память
     public const int const_hyppo_ave = 15;          //за сколько циклов усредняем значение параметра обучаемости
 
-    public const short const_spikes_write_DNA = 36;           //ответы начинают запоминаться в ДНК при сигнале выше этого
+    public const short const_spikes_write_DNA = 15;           //ответы начинают запоминаться в ДНК при сигнале выше этого
     public const short const_spikes_gennew_in = 423;        //количество спайков, при достижении которого добавляется новый синапс
     public const short const_spikes_gennew_out = 1234;      //количество спайков, при достижении которого добавляется новый выход на аксоне
     public const short const_spikes_gennew_neuron = 2345;  //количество спайков, при котором рождается новый нейрон
@@ -122,7 +123,7 @@ public class Service
 
     public const float const_hypo_divide = 2.0f / 3;          //гипофиз включил подавление торможения - ответы уменьшаются на эту величину
 
-    public const short const_timesLive_before_realign = 5000;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
+    public const short const_timesLive_before_realign = 23456;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
 
 
     public float Time_realtimeSinceStartup;
@@ -631,6 +632,64 @@ public class NeuronSum: Neuron
             pat += (ushort)(synapse_val);
             if (synapse_val >= 1) syn.Add(i);
         }
+        return pat;
+    }
+}
+
+//Нейрон-сумматор, способный выдавать спайки в обратную сторону. 
+public class NeuronDendSpike : Neuron
+{
+    public const ushort const_is_dend_func = 150; //если на синапсах больше этого числа - есть шанс пукнуть в нулевые синапсы
+    public const ushort const_max_syn_dend = 2345;    //если любой синапс достиг такого значения, мы пукаем в синапсы без значений единицу и обнуляем все накопления
+
+    public override char GetTypeNeuron() { return 'd'; }
+
+    //случайный суммирующий нейроно
+    public NeuronDendSpike(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv)
+        : base(num, ref cla, ref mq, ref serv)
+    {
+
+    }
+
+    //конструктор нейрона с заданными синапсами и аксонами
+    public NeuronDendSpike(int num, ref CellularAutamata3D cla, Coord[] syns, Coord[] axs, ref MAPQueue mq, ref Service serv)
+        : base(num, ref cla, syns, axs, ref mq, ref serv)
+    {
+    }
+
+    //Этот тип нейронов, при вычислении патерна на синапсах, может пукнуть в нулевые синапсы какие-то сигналы, при достижении неких условий
+    public void DoDend(ref List<int> syn0,ref List<int> syn1)
+    {
+        for(int i=0;i<syn1.Count;i++)
+        {
+            if(synapses[i].v>const_max_syn_dend) //очень много испытал этот синапс, он раскажет об этом своим братьям-синапсам, независимо от того, чего там на аксоне
+            {
+                for(int j=0;j<syn0.Count;j++)//пробежимся по всем нулевым синапсам и скажем клеткам в КА, что они должны слышать
+                {
+                    ca.ChangeAge(synapses[j].i, synapses[j].j, synapses[j].k, 1);
+                }
+                Debug.Log("ДЕНДРИТЫ!");
+                break;
+            }
+        }
+    }
+
+    public override ushort GetPattern(ref List<int> syn)
+    {
+        List<int> syn0 = new List<int>(); //нулевые синапсы, без значений
+
+        ushort pat = 0; ushort synapse_val = 0;
+        for (ushort i = 0; i < 16; i++)
+        {
+            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) //синапса нет такого еще у нейрона
+                break;
+            synapse_val = (ushort)(ca.cell[synapses[i].i, synapses[i].j, synapses[i].k]);//для этого типа нейронов, значения в КА важны, т.к. он сумиирует все свои синапсы
+            synapses[i].v += synapse_val;//это значение потом используется для распространения сигнала по дендриту, от синапса к синапсу, паралелльно
+            pat += (ushort)(synapse_val);
+            if (synapse_val >= 1) syn.Add(i);
+            else syn0.Add(i);
+        }
+        if (pat > const_is_dend_func) DoDend(ref syn0, ref syn);//возможно распространение сигнала по дендриту
         return pat;
     }
 }

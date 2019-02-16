@@ -86,6 +86,7 @@ public class Gen : MonoBehaviour
 
         if (run)
         {
+            ca.queChangeAgeFunc();
             n.Do();
             //играем музыку
             PlayMusic();
@@ -99,7 +100,8 @@ public class Gen : MonoBehaviour
         if (run_audio)
         {
             DrawAudio();
-            sinfo="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer;
+            ca.queChangeAgeFunc();
+            sinfo ="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer;
         }
         else sinfo = "Generations: " + generation.ToString() + "\r\nMic: off";
 
@@ -114,9 +116,7 @@ public class Gen : MonoBehaviour
     {
         if (run)
         {
-            
-            
-
+           
             Step();
 
             
@@ -167,6 +167,7 @@ public class Gen : MonoBehaviour
             blabla = System.Text.Encoding.ASCII.GetString(b);
             Debug.Log(blabla);
             WindowsVoice.speak(blabla);
+            n.dna.WriteDebug(blabla);
             
         }
         textDebug.text = "v: "+ volume.ToString() + " bla: " + blabla;
@@ -191,7 +192,7 @@ public class Gen : MonoBehaviour
     {
         generation++;
         ca.NextStep();
-        if(inputToggle.isOn)
+        if (inputToggle.isOn)
         for (short i = 0; i < lenght; i++)
         {
             for (short j = 0; j < height; j++)
@@ -483,36 +484,36 @@ public class Gen : MonoBehaviour
                         if (b == 0)
                         {
                             //рисуем ноль 
-                            ca.ChangeAge(i, j, 0, 0);
-                            DrawDot(i, j, 0, 0);
+                            ca.ChangeAgeFast(i, j, 0, 0);
+                            //DrawDot(i, j, 0, 0);
                             //рисуем ноль на противоположной стенке
-                            ca.ChangeAge(i, j, (short)(width - 1), 0);
-                            DrawDot(i, j, (short)(width - 1), 0);
+                            ca.ChangeAgeFast(i, j, (short)(width - 1), 0);
+                            //DrawDot(i, j, (short)(width - 1), 0);
                         }
                         else if (b > 0)//положительные значения рисуются ни главной стенке
                             for (short k = 0; k < 6; k++)
                             {
                                 //рисуем ноль на противоположной стенке
-                                ca.ChangeAge(i, j, (short)(width - 1 - k), 0);
-                                DrawDot(i, j, (short)(width - 1 - k), 0);
+                                ca.ChangeAgeFast(i, j, (short)(width - 1 - k), 0);
+                                //DrawDot(i, j, (short)(width - 1 - k), 0);
                                 if (b == 0)
                                 {
-                                    ca.ChangeAge(i, j, k, 0);
-                                    DrawDot(i, j, k, 0);
+                                    ca.ChangeAgeFast(i, j, k, 0);
+                                    //DrawDot(i, j, k, 0);
 
                                     break;
                                 }
                                 b -= ca.rule.max_age;
                                 if (b < 0)
                                 {
-                                    ca.ChangeAge(i, j, k, (short)(-b));
-                                    DrawDot(i, j, k, (short)(-b));
+                                    ca.ChangeAgeFast(i, j, k, (short)(-b));
+                                    //DrawDot(i, j, k, (short)(-b));
                                     break;
                                 }
                                 else
                                 {
-                                    ca.ChangeAge(i, j, k, 1);
-                                    DrawDot(i, j, k, 1);
+                                    ca.ChangeAgeFast(i, j, k, 1);
+                                    //DrawDot(i, j, k, 1);
                                 }
                             }
 
@@ -522,26 +523,26 @@ public class Gen : MonoBehaviour
                             for (short k = (short)(width-1); k > width-1-6; k--)
                             {
                                 //рисуем ноль на первой стенке
-                                ca.ChangeAge(i, j, (short)(width - 1 - k), 0);
-                                DrawDot(i, j, (short)(width - 1 - k), 0);
+                                ca.ChangeAgeFast(i, j, (short)(width - 1 - k), 0);
+                                //DrawDot(i, j, (short)(width - 1 - k), 0);
                                 if (b == 0)
                                 {
-                                    ca.ChangeAge(i, j, k, 0);
-                                    DrawDot(i, j, k, 0);
+                                    ca.ChangeAgeFast(i, j, k, 0);
+                                    //DrawDot(i, j, k, 0);
 
                                     break;
                                 }
                                 b -= ca.rule.max_age;
                                 if (b < 0)
                                 {
-                                    ca.ChangeAge(i, j, k, (short)(-b));
-                                    DrawDot(i, j, k, (short)(-b));
+                                    ca.ChangeAgeFast(i, j, k, (short)(-b));
+                                    //DrawDot(i, j, k, (short)(-b));
                                     break;
                                 }
                                 else
                                 {
-                                    ca.ChangeAge(i, j, k, 1);
-                                    DrawDot(i, j, k, 1);
+                                    ca.ChangeAgeFast(i, j, k, 1);
+                                    //DrawDot(i, j, k, 1);
                                 }
                             }
 
@@ -553,21 +554,8 @@ public class Gen : MonoBehaviour
                 }
             }
             lastSample = pos;
-            
 
-            /*//////////////////////////////////
-            float[] spectrum = new float[256];
-
-            audioSource.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
-
-            for (int i = 1; i < spectrum.Length - 1; i++)
-            {
-                Debug.DrawLine(new Vector3(i - 1, spectrum[i] + 10, 0), new Vector3(i, spectrum[i + 1] + 10, 0), Color.red);
-                Debug.DrawLine(new Vector3(i - 1, Mathf.Log(spectrum[i - 1]) + 10, 2), new Vector3(i, Mathf.Log(spectrum[i]) + 10, 2), Color.cyan);
-                Debug.DrawLine(new Vector3(Mathf.Log(i - 1), spectrum[i - 1] - 10, 1), new Vector3(Mathf.Log(i), spectrum[i] - 10, 1), Color.green);
-                Debug.DrawLine(new Vector3(Mathf.Log(i - 1), Mathf.Log(spectrum[i - 1]), 3), new Vector3(Mathf.Log(i), Mathf.Log(spectrum[i]), 3), Color.blue);
-            }
-            ///////////////////////////////*/
+           
         }
     }
 
