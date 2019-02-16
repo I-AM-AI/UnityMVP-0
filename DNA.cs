@@ -185,7 +185,7 @@ public class DNA
     public void WriteDebug(string debugText="", int debugInt=0, float debugFloat = 0, string comment="")
     {
         dbcmd = dbconn.CreateCommand();
-        string sqlQuery = "INSERT INTO DEBUGING (debugText, debugInt, debugFloat, comment) VALUES ('" + debugText + "', "
+        string sqlQuery = "INSERT INTO DEBUGGING (debugText, debugInt, debugFloat, comment) VALUES ('" + debugText + "', "
                                                                             + debugInt.ToString() + ", " 
                                                                             + debugFloat.ToString() + ", '"
                                                                             + comment + "')";

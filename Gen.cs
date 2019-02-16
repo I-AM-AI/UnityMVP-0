@@ -39,7 +39,8 @@ public class Gen : MonoBehaviour
 
     private PianoOut po;
 
-    
+    public InputField inputTextToOkagamga;
+    public Toggle inputToggleSpeak, inputToggleSpeakRepeat;
 
     void Start()
     {
@@ -119,17 +120,53 @@ public class Gen : MonoBehaviour
            
             Step();
 
-            
+            repeatTextFunc();
 
             //ритмы сердца и дыхания
             if (++ceur_bit % 12 == 0) {
-                ca.cell[53, 13, 3] = 1; ca.cell[53, 13, 4] = 1; ca.cell[53, 13, 5] = 1; ca.cell[53, 14, 4] = 1;
-                ca.cell[53, 12, 3] = 1; ca.cell[53, 12, 4] = 1; ca.cell[53, 12, 5] = 1; ca.cell[53, 11, 4] = 1;
+                ca.ChangeAge( 53, 13, 3, 1); ca.ChangeAge(53, 13, 4, 1); ca.ChangeAge(53, 13, 5, 1); ca.ChangeAge(53, 14, 4, 1);
+                ca.ChangeAge(53, 12, 3, 1); ca.ChangeAge(53, 12, 4, 1); ca.ChangeAge(53, 12, 5, 1); ca.ChangeAge(53, 11, 4, 1);
             }
 
-            if (++breathe_bit % 18 == 0) { ca.cell[51, 4, 4] = 1; ca.cell[51, 4, 5] = 1; ca.cell[51, 4, 6] = 1; ca.cell[51, 5, 5] = 1; }
+            if (++breathe_bit % 18 == 0) { ca.ChangeAge(51, 4, 4, 1); ca.ChangeAge(51, 4, 5, 1); ca.ChangeAge(51, 4, 6, 1); ca.ChangeAge(51, 5, 5,1); }
 
         }
+    }
+    public void textToBox(string text)
+    {
+        byte[] b = System.Text.Encoding.ASCII.GetBytes(text);
+        //рисуем в КА на стороне i-k
+        for (int i= 0;i<b.Length;i++)
+        {
+            for (int k=0;k<8;k++)//8бит
+            {
+                ca.ChangeAge((short)i, 0, (short)k, (short)((b[i] >> k) & 1));
+            }
+        }
+    }
+
+    int repeatTextToOkagamga = 0;
+    public void repeatTextFunc()
+    {
+
+        if (inputToggleSpeakRepeat.isOn && ++repeatTextToOkagamga>50)
+        {
+            inputTextOkagamga();
+        }
+
+    }
+    public void inputTextOkagamga()
+    {
+        repeatTextToOkagamga = 0;
+        if (inputTextToOkagamga.text.Length > 0)
+        {
+            textToBox(inputTextToOkagamga.text);
+            if(inputToggleSpeak.isOn)
+            {
+                WindowsVoice.speak(inputTextToOkagamga.text);
+            }
+        }
+        
     }
 
     private void PlayMusic()
@@ -154,18 +191,32 @@ public class Gen : MonoBehaviour
             for (int i=29;i<=40;i++)
             {
                 int v = 0;
-                for(int j=1;j<height-1;j++)
-                    for (int k=1;k<width-1;k++)
+
+                for (int j = 1; j < height - 1; j++)
+                {
+                    int tt = 0;
+                    for (int k = 1; k < width - 1; k++)
                     {
-                        v += ca.cell[i, j, k];
+                        tt += ca.cell[i, j, k];
+                        v += tt;
 
                     }
+
+                    /*
+                    //рисуем то, что говорим на стенке j-k
+                    tt = tt % n.ca.rule.max_age;
+                    ca.ChangeAge(0, (short)i, (short)j, (short)tt);//это не ошибка! i=0, i=j, j=k
+                    */
+                    
+                }
                 v = v % (122 - 97) + 97;
                 b[i-29]=  (byte)v;
                 
             }
             blabla = System.Text.Encoding.ASCII.GetString(b);
+            textToBox(blabla); //рисуем то, что говорим
             Debug.Log(blabla);
+            
             WindowsVoice.speak(blabla);
             n.dna.WriteDebug(blabla);
             
@@ -230,6 +281,7 @@ public class Gen : MonoBehaviour
         if (run)
         {
             po.PlayNote(60); po.PlayNote(64); po.PlayNote(70);
+            n.dna.WriteDebug("start");
         }
         else
         {
