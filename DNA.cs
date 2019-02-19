@@ -65,7 +65,7 @@ public class DNA
             if (count > 0)
             {
                 dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "SELECT neuron, pattern, response FROM DNA";
+                dbcmd.CommandText = "select neuron, pattern, response from dna order by response desc";//самые сильные ответы идут первыми
                 reader = dbcmd.ExecuteReader();
                 string query = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
                 int ne;
@@ -78,7 +78,7 @@ public class DNA
                     re = reader.GetInt16(2);
                     query += "(" + ne.ToString() + ", " + pa.ToString() + ", " + re.ToString() + "),";
                     //заполняем значениями ответов из ДНК только 1% случайных нейронов (остальное пусть вспоминает, если надо)
-                    if (usebase && Random.Range(0,100)>98)
+                    if ((usebase && Random.Range(0,100)>98) || re>=Service.CONST_DNA_RESPONSE_TO_WAKE)//если же ответ большой, он сразу попадает
                     {
                         //*
                         n[ne].responses[pa] = re;
@@ -224,9 +224,6 @@ public class DNA
             
         }
 
-        //но удаляем несколько первых значений
-        if (cnt > 3) Delete(cnt / 3); else Delete(1);   //чем быстрее учится - тем быстрее забывает
-
         sqlQuery = sqlQuery.Remove(sqlQuery.Length- 1);
         //Debug.Log(sqlQuery);
         dbcmd.CommandText = sqlQuery;
@@ -325,7 +322,7 @@ public class DNA
         dbconn.Close();
         dbconn = null;
 
-        DNA dna = new DNA(ref nn, ref s, true);
+        DNA dna = new DNA(ref nn, ref s, true); //здесь считывается таблица DNA
 
         return new NeuroNet(ref cla,ref s,ref mq,ref nn, ref dna);
     }
@@ -406,50 +403,51 @@ public class DNA
         dbcmd.CommandText = sqlQuery;
         dbcmd.ExecuteNonQuery();
 
-        //переписываем все из памяти на диск
         dbcmd = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM DNA";
         dbcmd.CommandText = sqlQuery;
         dbcmd.ExecuteNonQuery();
 
-        using (IDbCommand ic = dbconn.CreateCommand())
+        //консолидация памяти и запись на диск
+        bool atleastone = false;
+        string query = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
+        while (true)
         {
             dbcmd = dbmemory.CreateCommand();
-            dbcmd.CommandText = "SELECT neuron, pattern, response FROM DNA";
+            dbcmd.CommandText = "SELECT neuron, pattern FROM DNA LIMIT 1";            
             reader = dbcmd.ExecuteReader();
-            string query = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
-            int count = 0;
-            while (reader.Read())
+            if (reader.Read())
             {
-                count++;
-                query += "(" + reader[0].ToString() + ", " + reader[1].ToString() + ", " + reader[2].ToString() + "),";
-            }
-            query = query.Remove(query.Length - 1);
+                int neu = reader.GetInt32(0);
+                int pat = reader.GetInt32(1);
 
-            if (count > 0)
+                dbcmd = dbmemory.CreateCommand();
+                dbcmd.CommandText = "SELECT AVG(response) FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
+                reader = dbcmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    atleastone = true;
+                    query += "(" + neu.ToString() + ", " + pat.ToString() + ", " + (int)(reader.GetFloat(0)) + "),";
+                }
+                dbcmd = dbmemory.CreateCommand();
+                dbcmd.CommandText = "DELETE FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
+                dbcmd.ExecuteNonQuery();
+            }
+            else
             {
-                ic.CommandText = query;
-                ic.ExecuteNonQuery();
+                break;
             }
         }
 
-
-        /*
-        //пишем в таблицу все положительные ответы
-        foreach (Neuron n in nn)
+        //переписываем все из памяти на диск
+        if(atleastone)
+        using (IDbCommand ic = dbconn.CreateCommand())
         {
-            dbcmd = dbconn.CreateCommand();
-            sqlQuery = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
-            for (int i = 0; i <= 65535; i++)
-            {
-                if (n.responses[i]>0) 
-                    sqlQuery += "(" + n.number + ", " + i + ", " + n.responses[i] + "),";
-            }
-            sqlQuery = sqlQuery.Remove(sqlQuery.Length - 2);
-            dbcmd.CommandText = sqlQuery;
-            dbcmd.ExecuteNonQuery();
+            query = query.Remove(query.Length - 1);
+            ic.CommandText = query;
+            ic.ExecuteNonQuery();            
         }
-        */
+
 
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using CellularAutamata;
 using UnityEngine.UI;
+using B83.MathHelpers;
 
 public class Gen : MonoBehaviour
 {
@@ -102,7 +103,7 @@ public class Gen : MonoBehaviour
         {
             DrawAudio();
             ca.queChangeAgeFunc();
-            sinfo ="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer;
+            sinfo ="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer+"\tHz:"+Hz.ToString();
         }
         else sinfo = "Generations: " + generation.ToString() + "\r\nMic: off";
 
@@ -135,12 +136,12 @@ public class Gen : MonoBehaviour
     public void textToBox(string text)
     {
         byte[] b = System.Text.Encoding.ASCII.GetBytes(text);
-        //рисуем в КА на стороне i-k
-        for (int i= 0;i<b.Length;i++)
+        //рисуем в КА на стороне i-k в МАНАСе
+        for (int i= 19;i<19+b.Length;i++)
         {
             for (int k=0;k<8;k++)//8бит
             {
-                ca.ChangeAge((short)i, 0, (short)k, (short)((b[i] >> k) & 1));
+                ca.ChangeAge((short)i, 0, (short)k, (short)((b[i-19] >> k) & 1));
             }
         }
     }
@@ -507,6 +508,8 @@ public class Gen : MonoBehaviour
 
 
     int lastSample;
+    float Hz = 0;
+    const int BUF_COMPLEX = 1024;
     private void DrawAudio()
     {
         if (run_audio)
@@ -518,18 +521,15 @@ public class Gen : MonoBehaviour
             {
                 float[] samples = new float[diff * audioSource.clip.channels];
                 audioSource.clip.GetData(samples, lastSample);
-                //byte[] ba = ToByteArray(samples);
+                lenght_mic_buffer = samples.Length;
 
-                //Debug.Log(samples[samples.Length/2]);
-                lenght_mic_buffer= samples.Length;
+                Complex[] spec2 = new Complex[BUF_COMPLEX];
 
                 int mm = 0;
-                for(short i=0;i<lenght && mm< samples.Length;i++)
+                for (short i = 0; i < (lenght / 2) && mm < lenght_mic_buffer; i++)//на половине рисуем сырое аудио
                 {
-                    for (short j = 0; j < height && mm < samples.Length; j++)
+                    for (short j = 0; j < height && mm < lenght_mic_buffer; j++)
                     {
-
-
                         //приводим float от -1 до 1 к виду 
                         short b = (short)(samples[mm] * ca.rule.max_age * 6);//потому что в 6 клетках 1 флоат рисуем
 
@@ -551,28 +551,24 @@ public class Gen : MonoBehaviour
                                 if (b == 0)
                                 {
                                     ca.ChangeAgeFast(i, j, k, 0);
-                                    //DrawDot(i, j, k, 0);
-
                                     break;
                                 }
                                 b -= ca.rule.max_age;
                                 if (b < 0)
                                 {
                                     ca.ChangeAgeFast(i, j, k, (short)(-b));
-                                    //DrawDot(i, j, k, (short)(-b));
                                     break;
                                 }
                                 else
                                 {
                                     ca.ChangeAgeFast(i, j, k, 1);
-                                    //DrawDot(i, j, k, 1);
                                 }
                             }
 
                         else //отрицательные значения рисуются на противоположной стенке
                         {
                             b = (short)-b;
-                            for (short k = (short)(width-1); k > width-1-6; k--)
+                            for (short k = (short)(width - 1); k > width - 1 - 6; k--)
                             {
                                 //рисуем ноль на первой стенке
                                 ca.ChangeAgeFast(i, j, (short)(width - 1 - k), 0);
@@ -599,18 +595,102 @@ public class Gen : MonoBehaviour
                             }
 
                         }
+                        //для fft
+                        if(mm< BUF_COMPLEX) spec2[mm] = new Complex(samples[mm], 0);
 
                         mm++;
+
                         
+
                     }
                 }
+
+                //рисуем FFT
+                FFT.CalculateFFT(spec2, false);
+
+                mm = 0;
+                int maxn = 0;
+                float magnmax = 0;
+                    
+                for (short i = (short)(lenght / 2-3); i >=0  && mm < BUF_COMPLEX/2; i-=3)//на второй половине рисуем ФФТ
+                {
+                    for (short j = 0; j < height && mm < BUF_COMPLEX/2; j++)
+                    {
+                        short v = (short)(ca.rule.max_age+2 - spec2[mm].magnitude* ca.rule.max_age*456);
+
+                        //яркие сигналы с пердыдущего цикла сотрем
+                        ca.ChangeAgeFast((short)(i-1 + lenght / 2), j, 0, 0);
+                        ca.ChangeAgeFast((short)(i-1 + lenght / 2), j, (short)(width - 1), 0);
+                        ca.ChangeAgeFast((short)(i-2 + lenght / 2), j, 0, 0);
+                        ca.ChangeAgeFast((short)(i-2 + lenght / 2), j, (short)(width - 1), 0);
+
+                        if (v <= 1)//очень яркий сигнал
+                        {
+                            switch (v)
+                            {
+                                case 1:
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(ca.rule.max_age));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(ca.rule.max_age));
+                                    break;
+                                case short n when (n < 1 && n>-15):
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(ca.rule.max_age/2));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(ca.rule.max_age/2));
+                                    break;
+                                case short n when (n <= -15 && n > -30):
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(1));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(1));
+                                    break;
+                                case short n when (n <= -30 && n > -45):
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(1));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(1));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, 0, (short)(ca.rule.max_age));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, (short)(width - 1), (short)(ca.rule.max_age));
+                                    break;
+                                case short n when (n <= -45 && n>-60):
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(1));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(1));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, 0, (short)(ca.rule.max_age/2));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, (short)(width - 1), (short)(ca.rule.max_age/2));
+                                    break;
+                                default:
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, 0, (short)(1));
+                                    ca.ChangeAge((short)(i - 1 + lenght / 2), j, (short)(width - 1), (short)(1));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, 0, (short)(1));
+                                    ca.ChangeAge((short)(i - 2 + lenght / 2), j, (short)(width - 1), (short)(1));
+                                    break;
+                            }
+                            v = 1;
+                        }
+                        else if (v > ca.rule.max_age) v = 0;
+
+                        if(v==0)
+                        {
+                            ca.ChangeAgeFast((short)(i + lenght / 2), j, 0, v);
+                            ca.ChangeAgeFast((short)(i + lenght / 2), j, (short)(width - 1), v);
+                        }
+                        else //а вот ненулевые значения лучше чтобы попали в КА сразу и быстро
+                        {
+                            ca.ChangeAge((short)(i + lenght / 2), j, 0, v);
+                            ca.ChangeAge((short)(i + lenght / 2), j, (short)(width - 1), v);
+                        }
+
+                        if ((float)spec2[mm].magnitude > magnmax)
+                        {
+                            maxn = mm;
+                            magnmax =(float) spec2[mm].magnitude;
+                        }
+
+                        mm++;
+                    }
+                        
+                }
+                Hz = maxn * AudioSettings.outputSampleRate / BUF_COMPLEX;
             }
             lastSample = pos;
-
-           
         }
     }
 
+    
     public byte[] ToByteArray(float[] floatArray)
     {
         int len = floatArray.Length * 4;

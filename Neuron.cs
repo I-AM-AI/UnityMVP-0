@@ -99,14 +99,14 @@ public class Service
     public int hyppocamp_value { get; set; }    //когда нейрон обучился (через ОЗУ или метоботропно) он увеличивает это значение                                                
     public int hyppocamp_prev { get; set; }    //предыдущее значение 
     public bool dnadnadna { get; set; }         //действие гормона гиппокампа "пишем все в ДНК"
-    public const float const_hyppocamp_start = 40.0f; //когда среднее будет больше этого за единицу времени - посылаем нейромедиатор принудительного запоминания
+    public const float const_hyppocamp_start = 70.0f; //когда среднее будет больше этого за единицу времени - посылаем нейромедиатор принудительного запоминания
     public const float const_hyppocamp_stop = 200.0f;  //когда процент обученных упал до этого значение, перестаем насильно писать в память
     public const int const_hyppo_ave = 15;          //за сколько циклов усредняем значение параметра обучаемости
 
-    public const short const_spikes_write_DNA = 15;           //ответы начинают запоминаться в ДНК при сигнале выше этого
+    public const short const_spikes_write_DNA = 17;           //ответы начинают запоминаться в ДНК при сигнале выше этого
     public const short const_spikes_gennew_in = 423;        //количество спайков, при достижении которого добавляется новый синапс
-    public const short const_spikes_gennew_out = 1234;      //количество спайков, при достижении которого добавляется новый выход на аксоне
-    public const short const_spikes_gennew_neuron = 2345;  //количество спайков, при котором рождается новый нейрон
+    public const short const_spikes_gennew_out = 536;      //количество спайков, при достижении которого добавляется новый выход на аксоне
+    public const short const_spikes_gennew_neuron = 1345;  //количество спайков, при котором рождается новый нейрон
     public const short const_min = -500;                      //минимальный ответ нейрона
     public const short const_max = 32000;                  //максимальный ответ нейрона
 
@@ -124,7 +124,7 @@ public class Service
     public const float const_hypo_divide = 2.0f / 3;          //гипофиз включил подавление торможения - ответы уменьшаются на эту величину
 
     public const short const_timesLive_before_realign = 23456;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
-
+    public const short CONST_DNA_RESPONSE_TO_WAKE = 99;    //все ответы больше равно этого, при просыпании попадают в ОЗУ, остальные случайно
 
     public float Time_realtimeSinceStartup;
 
@@ -388,7 +388,12 @@ public class Neuron : NeuronBase
                     service.queQueryToDnaWrite.Enqueue(new structDNAWriteQueue(number, pat, responses[pat]));
                     responses_DNA_flags[pat] |= 0b1000; //ждем запись
                 }
-                   
+
+                if (responses[pat] >= Service.const_max)//больше не бывает
+                {
+                    responses[pat] = (short)(responses[pat] >> 1);
+                }
+
                 if (responses[pat] % Service.const_spikes_gennew_in == 0 & !service.decdecdec)//добавляем синапс в нейрон
                 {
                     responses[pat] += 50; //потому что забывание и торможение может снова включить добавление синапса
@@ -579,22 +584,27 @@ public class Neuron : NeuronBase
         else if (++chancetoteech < Service.const_timesLive_before_realign) return;//все еще есть шанс обучится
 
         chancetoteech = 0;
-        Debug.Log("Меняем нейрону "+ number+" синапсы и аксон");
+        Debug.Log("Меняем нейрону "+ number+" синапс");
 
-        for (int i = 0; i < 6; i++)            //сделаем 6 синапсов в случайных местах коробки
+        for (int i = 4; i < 6; i++)            //переместим 2 синапса в близкие случайные места коробки
         {
-            synapses[i].i = (short)(Service.RandomRange(0, ca.lenght));
-            synapses[i].j = (short)(Service.RandomRange(0, ca.height));
-            synapses[i].k = (short)(Service.RandomRange(0, ca.width));
+            synapses[i].i = (short)(Service.RandomRange(synapses[i].i-2, synapses[i].i+3));
+            synapses[i].j = (short)(Service.RandomRange(synapses[i].j-2, synapses[i].j+3));
+            synapses[i].k = (short)(Service.RandomRange(synapses[i].k-2, synapses[i].k+2));
+
+            if (synapses[i].i < 0) synapses[i].i = 0; if (synapses[i].j < 0) synapses[i].j = 0; if (synapses[i].k < 0) synapses[i].k = 0;
+            if (synapses[i].i >= ca.lenght) synapses[i].i = (short)(ca.lenght-1); if (synapses[i].j >= ca.height) synapses[i].j = (short)(ca.height - 1); if (synapses[i].k >= ca.width) synapses[i].k = (short)(ca.width - 1);
 
             //синапс 0,0,0 - служебный, у него нет нейронов
-            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
+            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;            
         }
        
+        /*
         //у нового нейрона пока только один выход, сгенерируем его местоположение в коробке
         axon[0].i = (short)(Service.RandomRange(0, ca.lenght));
         axon[0].j = (short)(Service.RandomRange(0, ca.height));
         axon[0].k = (short)(Service.RandomRange(0, ca.width));
+        */
     }
 }
 
@@ -606,6 +616,7 @@ public class Neuron : NeuronBase
 public class NeuronSum: Neuron
 {
     public override char GetTypeNeuron() { return 's'; }
+    public const ushort const_syn_search = 65000;
 
     //случайный суммирующий нейроно
     public NeuronSum(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv)
@@ -620,6 +631,30 @@ public class NeuronSum: Neuron
     {
     }
 
+    private void DoSynSearch()
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) return;
+            else
+            {
+                if (synapses[i].v == 0)//слишком долго молчит синапс, пусть поищет себе новый дом
+                {
+                    synapses[i].i = (short)Service.RandomRange(synapses[i].i - 2, synapses[i].i + 3);
+                    synapses[i].j = (short)Service.RandomRange(synapses[i].j - 2, synapses[i].j + 3);
+                    synapses[i].k = (short)Service.RandomRange(synapses[i].k - 2, synapses[i].k + 3);
+
+                    if (synapses[i].i < 0) synapses[i].i = 0; if (synapses[i].j < 0) synapses[i].j = 0; if (synapses[i].k < 0) synapses[i].k = 0;
+                    if (synapses[i].i >= ca.lenght) synapses[i].i = (short)(ca.lenght - 1); if (synapses[i].j >= ca.height) synapses[i].j = (short)(ca.height - 1); if (synapses[i].k >= ca.width) synapses[i].k = (short)(ca.width - 1);
+
+                    //синапс 0,0,0 - служебный, у него нет нейронов
+                    if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
+                }
+                else synapses[i].v = 0;//обнулим для будущих движений
+            }
+        }
+    }
+
     //сумматор только лишь переопределяет метод вычисления своего паттерна - это сумма значений всех синапсов
     public override ushort GetPattern(ref List<int> syn)
     {
@@ -627,10 +662,19 @@ public class NeuronSum: Neuron
         for (ushort i = 0; i < 16; i++)
         {
             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) //синапса нет такого еще у нейрона
-                return pat;
+                break;
             synapse_val = (ushort)(ca.cell[synapses[i].i, synapses[i].j, synapses[i].k]);//для этого типа нейронов, значения в КА важны, т.к. он сумиирует все свои синапсы
+             
             pat += (ushort)(synapse_val);
-            if (synapse_val >= 1) syn.Add(i);
+            if (synapse_val >= 1)
+            {
+                syn.Add(i);
+                if(++synapses[i].v>= const_syn_search)//пора молчащим синапсам поискать себе новый дом поблизости
+                {
+                    DoSynSearch();
+                }
+            }
+            
         }
         return pat;
     }
@@ -639,8 +683,8 @@ public class NeuronSum: Neuron
 //Нейрон-сумматор, способный выдавать спайки в обратную сторону. 
 public class NeuronDendSpike : Neuron
 {
-    public const ushort const_is_dend_func = 150; //если на синапсах больше этого числа - есть шанс пукнуть в нулевые синапсы
-    public const ushort const_max_syn_dend = 2345;    //если любой синапс достиг такого значения, мы пукаем в синапсы без значений единицу и обнуляем все накопления
+    public const ushort const_is_dend_func = 8; //если на синапсах меньше (т.е. много веществ) этого числа - есть шанс пукнуть в нулевые синапсы
+    public const ushort const_max_syn_dend = 12345;    //если любой синапс достиг такого значения, мы пукаем в синапсы без значений единицу и обнуляем все накопления
 
     public override char GetTypeNeuron() { return 'd'; }
 
@@ -689,7 +733,7 @@ public class NeuronDendSpike : Neuron
             if (synapse_val >= 1) syn.Add(i);
             else syn0.Add(i);
         }
-        if (pat > const_is_dend_func) DoDend(ref syn0, ref syn);//возможно распространение сигнала по дендриту
+        if (pat > 0 && pat <= const_is_dend_func) DoDend(ref syn0, ref syn);//возможно распространение сигнала по дендриту
         return pat;
     }
 }
