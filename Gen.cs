@@ -86,6 +86,16 @@ public class Gen : MonoBehaviour
 
         string sinfo;
 
+
+        if (run_audio)
+        {
+            DrawAudio();
+            ca.queChangeAgeFunc();
+            sinfo ="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer+"\tHz:"+Hz.ToString();
+        }
+        else sinfo = "Generations: " + generation.ToString() + "\r\nMic: off";
+
+        textInfo.text = sinfo;
         if (run)
         {
             ca.queChangeAgeFunc();
@@ -99,49 +109,47 @@ public class Gen : MonoBehaviour
             if (hyyy > 0) textDebug.text = hyyy.ToString();
         }
 
-        if (run_audio)
-        {
-            DrawAudio();
-            ca.queChangeAgeFunc();
-            sinfo ="Generations: " + generation.ToString()+"\r\nMic: ON | Buffer: "+ lenght_mic_buffer+"\tHz:"+Hz.ToString();
-        }
-        else sinfo = "Generations: " + generation.ToString() + "\r\nMic: off";
-
-        textInfo.text = sinfo;
-
+        repeatTextFunc();
     }
 
     uint ceur_bit = 0;
-    uint breathe_bit = 18;
+    uint breathe_bit = 0;
 
     private void FixedUpdate()
     {
         if (run)
         {
-           
-            Step();
 
-            repeatTextFunc();
-
-            //ритмы сердца и дыхания
-            if (++ceur_bit % 12 == 0) {
-                ca.ChangeAge( 53, 13, 3, 1); ca.ChangeAge(53, 13, 4, 1); ca.ChangeAge(53, 13, 5, 1); ca.ChangeAge(53, 14, 4, 1);
-                ca.ChangeAge(53, 12, 3, 1); ca.ChangeAge(53, 12, 4, 1); ca.ChangeAge(53, 12, 5, 1); ca.ChangeAge(53, 11, 4, 1);
+            //сердцебиение и дыхание
+            for (int j = 0; j < height; j++)
+            {
+                ca.ChangeAgeFast(53, (short)j, 10, 0);
+                ca.ChangeAgeFast(53, (short)j, 12, 0);
             }
-
-            if (++breathe_bit % 18 == 0) { ca.ChangeAge(51, 4, 4, 1); ca.ChangeAge(51, 4, 5, 1); ca.ChangeAge(51, 4, 6, 1); ca.ChangeAge(51, 5, 5,1); }
-
+            for (int j=0;j< breathe_bit%(height-1);j++)
+            {
+                ca.ChangeAge(53, (short)j, 10, 1);
+            }
+            for (int j = 0; j < ceur_bit%(height >> 1); j++)
+            {
+                ca.ChangeAge(53, (short)(height-j-1), 12, 1);
+            }
+            breathe_bit++; ceur_bit++;         
+            
+            Step();
         }
     }
     public void textToBox(string text)
     {
         byte[] b = System.Text.Encoding.ASCII.GetBytes(text);
-        //рисуем в КА на стороне i-k в МАНАСе
-        for (int i= 19;i<19+b.Length;i++)
+        //рисуем в КА на стороне i-k в 
+        for (int i= 0; i<b.Length && i<lenght; i++)
         {
-            for (int k=0;k<8;k++)//8бит
+            for (int j=0;j<8;j++)//8бит
             {
-                ca.ChangeAge((short)i, 0, (short)k, (short)((b[i-19] >> k) & 1));
+                ca.ChangeAge((short)(i+lenght/2+1), (short)j, 0 , (short)((b[i] >> j) & 1));
+                ca.ChangeAge((short)(i + lenght / 2 + 1), (short)j, (short)(width-1), (short)((b[i] >> j) & 1));
+               
             }
         }
     }
@@ -150,7 +158,7 @@ public class Gen : MonoBehaviour
     public void repeatTextFunc()
     {
 
-        if (inputToggleSpeakRepeat.isOn && ++repeatTextToOkagamga>50)
+        if (inputToggleSpeakRepeat.isOn && ++repeatTextToOkagamga>150)
         {
             inputTextOkagamga();
         }
@@ -181,11 +189,11 @@ public class Gen : MonoBehaviour
                 volume = volume + ca.cell[i, j, width / 2] * 3+ ca.cell[i, j, width / 2-1]+ ca.cell[i, j, width / 2+1];   
         }
         if (volume < 1) volume = 0;        
-        else volume = (Mathf.Log(Mathf.Log(volume)) ) * 12f;
+        else volume = (Mathf.Log10(Mathf.Log(volume)) ) * 5f;
 
         //if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
         string blabla="";
-        if (volume>0.05)
+        if (volume>0.5)
         {//говорит и показыват КА
 
             byte[] b = new byte[12];

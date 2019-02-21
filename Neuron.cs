@@ -68,9 +68,9 @@ public class MAPQueue
 
     public MAPQueue()
     {
-        que = new FixedSizedQueueConcurent<structMAPqueue>[256];
+        que = new FixedSizedQueueConcurent<structMAPqueue>[Service.CONST_MAP_QUEUES];
         //их все надо родить
-        for(int i=0;i<256;i++)
+        for(int i=0;i< Service.CONST_MAP_QUEUES; i++)
         {
             que[i] = new FixedSizedQueueConcurent<structMAPqueue>(20);//количество публикаций в мап-очедерях ограниченно 20
         }
@@ -102,11 +102,12 @@ public class Service
     public const float const_hyppocamp_start = 70.0f; //когда среднее будет больше этого за единицу времени - посылаем нейромедиатор принудительного запоминания
     public const float const_hyppocamp_stop = 200.0f;  //когда процент обученных упал до этого значение, перестаем насильно писать в память
     public const int const_hyppo_ave = 15;          //за сколько циклов усредняем значение параметра обучаемости
+    public const float CONST_HYPPO_TIMESTART = 600; //через сколько времени возможно включение торможения в секундах
 
     public const short const_spikes_write_DNA = 17;           //ответы начинают запоминаться в ДНК при сигнале выше этого
-    public const short const_spikes_gennew_in = 423;        //количество спайков, при достижении которого добавляется новый синапс
-    public const short const_spikes_gennew_out = 536;      //количество спайков, при достижении которого добавляется новый выход на аксоне
-    public const short const_spikes_gennew_neuron = 1345;  //количество спайков, при котором рождается новый нейрон
+    public const short const_spikes_gennew_in = 347;        //количество спайков, при достижении которого добавляется новый синапс
+    public const short const_spikes_gennew_out = 436;      //количество спайков, при достижении которого добавляется новый выход на аксоне
+    public const short const_spikes_gennew_neuron = 745;  //количество спайков, при котором рождается новый нейрон
     public const short const_min = -500;                      //минимальный ответ нейрона
     public const short const_max = 32000;                  //максимальный ответ нейрона
 
@@ -117,6 +118,8 @@ public class Service
 
     public const short const_del_patern = -100;              //Если при забывании  ответ достигает этого значения, то патерн становится равен 0
     public const short const_dec_MAP = 1;                    //уменьшить все значения в таблице МАП на эту величину
+    public const short CONST_MAP_QUEUES = 1024;              //количество МАП-потоков
+    public const short CONST_MAP_COUNT_PER_NEURON = 16;      //количество МАП-групп, в котором нейрон строит ассоциации
     public const short const_MAP_teach_end = 600;            //при достижении этого значения, МАП обучение завершено
 
     public const short const_dec_by_time = 1;                //с течением времени ответы уменьшаются на эту величину
@@ -202,11 +205,10 @@ public class Neuron : NeuronBase
         axon[0].k = (short)(Service.RandomRange(0, ca.width));
 
         //рожаем номера групп для МАП
-        int countMAP=Service.RandomRange(1, 16); //количество групп
-        MAPa = new short[countMAP];
-        for(int i=0;i<countMAP;i++)
+        MAPa = new short[Service.CONST_MAP_COUNT_PER_NEURON];
+        for(int i=0;i< Service.CONST_MAP_COUNT_PER_NEURON; i++)
         {
-            MAPa[i]= (short)(Service.RandomRange(0, 255)); //номер группы
+            MAPa[i]= (short)(Service.RandomRange(0, Service.CONST_MAP_QUEUES)); //номер группы
         }
 
         mapQue = mq;//ссылка на очереди МАП
@@ -506,7 +508,7 @@ public class Neuron : NeuronBase
             }
         }
         pow_ave /= (short)MAPa.Length;//среднее значение сигнала на аксонах ассоциированных нейронов
-        if (pow_ave < 3) return;//меньше чем 3 значения в ДНК нет
+        if (pow_ave < Service.const_spikes_write_DNA) return;//меньше чем  значения в ДНК нет
 
         int count_syn_teached = 0;
         foreach(int syn in syn_on)
@@ -524,7 +526,8 @@ public class Neuron : NeuronBase
             responses[p] = pow_ave;
             foreach (int syn in syn_on)
             {
-                MAPtable[syn] = Service.const_MAP_teach_end /2;
+                short cc = Service.const_MAP_teach_end >> 1;
+                if (MAPtable[syn]>>1 > cc) MAPtable[syn] = cc; else MAPtable[syn] = MAPtable[syn] >> 1;
             }
             //запишем в ДНК результат обучения
             service.queQueryToDnaWrite.Enqueue(new structDNAWriteQueue(number, p, responses[p]));

@@ -256,15 +256,21 @@ public class DNA
 
 
         dbcmd = dbconn.CreateCommand();
-        dbcmd.CommandText = "SELECT rule, lenght, height, width FROM CA LIMIT 1";
+        dbcmd.CommandText = "SELECT rule, lenght, height, width, typeca FROM CA LIMIT 1";
         reader = dbcmd.ExecuteReader();
         reader.Read();
         string rule = reader.GetString(0);
         short le = reader.GetInt16(1);
         short he = reader.GetInt16(2);
         short wi = reader.GetInt16(3);
+        int typeca = reader.GetInt32(4);
 
-        CellularAutamata3D cla = new CellularAutamata3D(le,he,wi,rule);
+        CellularAutamata3D cla;
+        if (typeca==3)
+            cla = new CellularAutamata3D(le,he,wi,rule);
+        else
+            cla = new CellularAutamata3D(le, he, wi, rule, true);
+
         reader.Close();
 
         dbcmd = dbconn.CreateCommand();
@@ -356,7 +362,8 @@ public class DNA
 
         //пишем в таблицу КА
         dbcmd = dbconn.CreateCommand();
-        sqlQuery = "INSERT INTO CA (rule, lenght, height, width) VALUES ('" + ca.rule.rule+"', "+ca.lenght+", "+ ca.height+", "+ca.width +" )";
+        int typeca = ca.is_25_emul ? 25 : 3;
+        sqlQuery = "INSERT INTO CA (rule, lenght, height, width, typeca) VALUES ('" + ca.rule.rule+"', "+ca.lenght+", "+ ca.height+", "+ca.width + ", " + typeca + " )";
         dbcmd.CommandText = sqlQuery;
         dbcmd.ExecuteNonQuery();
 

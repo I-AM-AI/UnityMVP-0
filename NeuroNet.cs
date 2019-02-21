@@ -236,7 +236,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
                 Debug.Log("Выключено торможение!");
             }
         }
-        else if (service.hypophise_valuable + service.hypophise_NONvaluable > 0)
+        else if (service.hypophise_valuable + service.hypophise_NONvaluable > 0 && service.Time_realtimeSinceStartup>Service.CONST_HYPPO_TIMESTART)//только через 2 минуты после просыпания возможно торможение
         {
             if (service.hypophise_NONvaluable * 1.0f / (service.hypophise_valuable + service.hypophise_NONvaluable) > Service.const_hypohpise_flow_change)
             {
@@ -278,7 +278,16 @@ public class NeuroNet//рабочий класс - обертка, он созд
         {
             //у нового нейрона такие же синапсы и аксоны как у родителя
             //и ответы пока не придумал как ставить, пусть типа нет ответов пока
-            Neuron neu = new Neuron(nn.Count, ref ca,  nn[new_neu].synapses, nn[new_neu].axon,ref mq,ref service);
+            char typen = nn[new_neu].GetTypeNeuron();
+            Neuron neu;
+
+            if (typen=='c')// структурный
+                neu = new Neuron(nn.Count, ref ca,  nn[new_neu].synapses, nn[new_neu].axon,ref mq,ref service);
+            else if (typen == 's')// суммирующий
+                neu = new NeuronSum(nn.Count, ref ca, nn[new_neu].synapses, nn[new_neu].axon, ref mq, ref service);
+            else //дендритный
+                neu = new NeuronDendSpike(nn.Count, ref ca, nn[new_neu].synapses, nn[new_neu].axon, ref mq, ref service);
+
             nn.Add(neu);
         }
     }
