@@ -77,7 +77,15 @@ public class MAPQueue
     }
 }
 
-
+//структура для запроса, есть ли хоть один синапс для такого аксона
+public struct AxonToSyn
+{
+    public int neuron, axon;
+    public AxonToSyn(int n, int a)
+    {
+        neuron = n; axon = a;
+    }
+}
 
 
 public class Service
@@ -86,6 +94,7 @@ public class Service
     public FixedSizedQueueConcurent<structDNAWriteQueue> queQueryToDnaWrite;  //очередь запросов на запись из ДНК
 
     public FixedSizedQueueConcurent<int> queQueryNewNeuron;         //очередь запросос на создание нового нейрона в системе
+    public FixedSizedQueueConcurent<AxonToSyn> queQueryAxonToSyn;         //очередь запросос на создание нового нейрона в системе
 
     //эти значения нужны для поддержки балланса в системе (эмитация гипофиза)
     public int hypophise_valuable {get;set;}       //когда нейрон посылает в КА значение больше 0, он увеличивает это значение
@@ -145,6 +154,7 @@ public class Service
         queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(1000);        
         queQueryNewNeuron = new FixedSizedQueueConcurent<int>(1000);
         queQueryToDnaWrite = new FixedSizedQueueConcurent<structDNAWriteQueue>(1000);
+        queQueryAxonToSyn = new FixedSizedQueueConcurent<AxonToSyn>(1000);
     }
 }
 
@@ -360,6 +370,8 @@ public class Neuron : NeuronBase
                         }
                     }
 
+                    //если аксон стреляет в никуда, он каждый цикл своей активности меняет свое положение, пока не найдет какой-то синапс какого-то нейрона
+                    if (axon[i].v != 1) DoAxonPlasticity(i);
                 }
                 //для гипофиза, пока его нет, его функцию заменяют сервисы, отслеживающие активность всей сети
                 if (responses[pat] > ca.rule.max_age)
@@ -466,6 +478,38 @@ public class Neuron : NeuronBase
 
         }
     }
+
+    //вызывается во время активности, если у аксона выход подключен в никуда
+    private void DoAxonPlasticity(int a)
+    {
+        if(axon[a].v==2)//уже посылали запрос в базу, ждем от нее ответ
+        {
+            return; //ничего не делаем, пока ответ не придет
+        }
+        else if(axon[a].v==1)//может уже пришел ответ и аксон подключился?
+        {
+            return; //тоже ничего не делаем
+        }
+        else //меняем аксону выходы и спрашиваем ДНК, есть ли там синапсы
+        {
+            axon[a].i = (short)Service.RandomRange(axon[a].i - 2, axon[a].i + 3);
+            axon[a].j = (short)Service.RandomRange(axon[a].j - 2, axon[a].j + 3);
+            axon[a].k = (short)Service.RandomRange(axon[a].k - 2, axon[a].k + 3);
+
+            if (axon[a].i < 0) axon[a].i = 0; if (axon[a].j < 0) axon[a].j = 0; if (axon[a].k < 0) axon[a].k = 0;
+            if (axon[a].i >= ca.lenght) axon[a].i = (short)(ca.lenght - 1);
+            if (axon[a].j >= ca.height) axon[a].j = (short)(ca.height - 1);
+            if (axon[a].k >= ca.width) axon[a].k = (short)(ca.width - 1);
+
+            if (axon[a].i == 0 && axon[a].j == 0 && axon[a].k == 0)//такого не бывает
+                axon[a].k = 1;
+
+            axon[a].v = 2;//метка, что в данный момент мы спрашиваем, есть ли в ДНК такое           
+
+            service.queQueryAxonToSyn.Enqueue(new AxonToSyn(number, a));
+        }
+    }
+
     //преобразует значение ответа нейрона в возраст клетки КА
     private int GetAge(int resp)
     {

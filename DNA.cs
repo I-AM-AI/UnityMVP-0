@@ -108,6 +108,31 @@ public class DNA
         dbmemory = null;
     }
 
+    //прочитать из базы, есть ли синапс, соответствующий аксону
+    public bool IsAxonToSynapseOne()
+    {
+        AxonToSyn axsyn;
+        if (service.queQueryAxonToSyn.TryDequeue(out axsyn))//добавление в систему нового нейрона
+        {
+            dbcmd = dbconn.CreateCommand();
+            dbcmd.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + nn[axsyn.neuron].axon[axsyn.axon].i + " AND j=" + nn[axsyn.neuron].axon[axsyn.axon].j + " AND k=" + nn[axsyn.neuron].axon[axsyn.axon].k;
+            reader = dbcmd.ExecuteReader();
+            if (reader.Read())
+            {
+
+                nn[axsyn.neuron].axon[axsyn.axon].v = 1;//это укажет нейрону, что его аксон теперь соединен по крайней мере с одним синапсом
+                Debug.Log(axsyn.neuron + " АКСОН НАШЕЛ СЕБЕ МЕСТО!");
+            }
+            else
+            {
+                nn[axsyn.neuron].axon[axsyn.axon].v = 0;//соединения нет
+            }
+
+            return true;//это не значит, что есть, а значит, что прочитали
+        }
+        return false;//это не значит, что нет, а значит что очередь пуста
+    }
+
     public bool ReadOne() //прочитать из базы первый в очереди запрос \ true - успешно прочитали
     {
         structDNAReadQueue res=new structDNAReadQueue();
@@ -306,6 +331,16 @@ public class DNA
                 axs[i].j = reader2.GetInt16(2);
                 axs[i].k = reader2.GetInt16(3);
                 i++;
+            }
+            for(int a=0;a<axs.Length;a++)
+            {
+                dbcmd2 = dbconn.CreateCommand();
+                dbcmd2.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + axs[a].i + " AND j=" + axs[a].j + " AND k=" + axs[a].k;
+                reader2 = dbcmd2.ExecuteReader();
+                if(reader2.Read())
+                {
+                    axs[a].v = 1;//это укажет нейрону, что его аксон соединен по крайней мере с одним синапсом
+                }
             }
 
             if (nt=='s')//суммирующий нейрон

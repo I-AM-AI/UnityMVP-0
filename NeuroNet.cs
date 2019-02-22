@@ -272,6 +272,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
         dna.WriteOne();
         dna.ReadOne();
+        dna.IsAxonToSynapseOne();
 
         int new_neu;
         if(service.queQueryNewNeuron.TryDequeue(out new_neu))//добавление в систему нового нейрона
@@ -290,8 +291,9 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
             nn.Add(neu);
         }
+        
     }
-    public void Sleep()
+        public void Sleep()
     {
         dna.Sleep(ref ca);
     }
