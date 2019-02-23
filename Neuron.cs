@@ -100,8 +100,8 @@ public class Service
     public int hypophise_valuable {get;set;}       //когда нейрон посылает в КА значение больше 0, он увеличивает это значение
     public int hypophise_NONvaluable { get; set; }  //когда нейрон посылает в КА значение 0 (это происходит, когда сила его ответа больше максимально принимаемого КА)
     public bool decdecdec { get; set; }             //true - пришел тормозной нейромедиатор, уменьшаем значения
-    public const float const_hypohpise_flow_change = 0.9f;   //если процент торможения выше этого порога - включаем не на долго реверс системы (торможение торможения)
-    public const float const_hypohpise_flow_change_hesteresis = 0.02f; //как только торможение упадет на эту величину - выключаем
+    public const float const_hypohpise_flow_change = 0.94f;   //если процент торможения выше этого порога - включаем не на долго реверс системы (торможение торможения)
+    public const float const_hypohpise_flow_change_hesteresis = 0.01f; //как только торможение упадет на эту величину - выключаем
     
     //эти значения нужны для сигналов памяти
     //это значение учитывает количество вновь обучившихся нейронов
@@ -137,6 +137,9 @@ public class Service
 
     public const short const_timesLive_before_realign = 23456;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
     public const short CONST_DNA_RESPONSE_TO_WAKE = 99;    //все ответы больше равно этого, при просыпании попадают в ОЗУ, остальные случайно
+
+    public const byte CONST_NEUROMEDIATOR_CACHE = 200;     //начальное количество нейромедиатора в везикулах. Усталость. Нейрон не будет стрелять, если оно упало до CONST_NEUROMEDIATOR_LOW
+    public const byte CONST_NEUROMEDIATOR_LOW = 33;        //количество нейромедиатора в везикулах при котором Нейрон не будет стрелять
 
     public float Time_realtimeSinceStartup;
 
@@ -188,6 +191,7 @@ public class Neuron : NeuronBase
 
     private Service         service;                //сервисы главного модуля, к которым нейрон может обращаться
 
+    private byte neuromediator_val;         //запас нейромедиатора. Пополняется на единицу, на каждом Do() до CONST_NEUROMEDIATOR_CACHE и уменьшается до 0. Влияет на функцию передачи сообщения выше
 
     public override char GetTypeNeuron() { return 'c'; }
     //конструктор случайного нейрона
@@ -266,6 +270,8 @@ public class Neuron : NeuronBase
         service = serv;
 
         MAPtable = new int[16]; //таблица МАП
+
+        neuromediator_val = (byte)Service.RandomRange(0, Service.CONST_NEUROMEDIATOR_CACHE);
     }
 
     public short GetActivityForMAP(float time, int power)
@@ -295,6 +301,9 @@ public class Neuron : NeuronBase
 
     public void Do()
     {
+        //нейромедиатор пополняется в каждом цикле
+        if (neuromediator_val < Service.CONST_NEUROMEDIATOR_CACHE) neuromediator_val++;
+
         //узнаем паттерн
         ushort pat = 0; 
         List<int> syn_on=new List<int>();//ненулевые синапсы (нужно для МАП)
@@ -308,8 +317,7 @@ public class Neuron : NeuronBase
 
         if(responses[pat]==0)//ответа в ОЗУ на этот паттерн нет
         {
-            responses[pat] = Service.const_first_time;//а теперь есть
-            //Debug.Log(number + "Виден впервые такой паттерн");
+            responses[pat] = Service.const_first_time;//а теперь есть           
             if (!service.decdecdec)//если нет торможения торможения
                 ImPassive(syn_on, pat);
         }
@@ -337,63 +345,76 @@ public class Neuron : NeuronBase
                 }
 
                 //рисуем в клеточном автомате по всем выходам аксона
-                for (int i = 0; i < 16; i++)
+
+                if (neuromediator_val > Service.CONST_NEUROMEDIATOR_LOW)
                 {
-                    if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) break; //больше выходов аксона нет
+                    neuromediator_val >>= 1; //половина нейромедиатора выперднула
 
-                    //if (responses[pat] > ca.rule.max_age) ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, ca.rule.max_age);//если ответ нейрона больше максимального в КА - ответим максимальный
+                    for (int i = 0; i < 16; i++)
+                    {
+                        if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) break; //больше выходов аксона нет
 
-                    //если ответ нейрона больше максимального в КА - положим 0, это тормозное действие. Все любят бездельничать.
-                    //ЭТО ОКАЖЕТ ТОРМОЗНОЕ ДЕЙСТВИЕ НА ВСЮ СИСТЕМУ В ЦЕЛОМ, хотя отдельные нейроны, наоборот, могут активироваться
-                    /*
+                        //if (responses[pat] > ca.rule.max_age) ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, ca.rule.max_age);//если ответ нейрона больше максимального в КА - ответим максимальный
+
+                        //если ответ нейрона больше максимального в КА - положим 0, это тормозное действие. Все любят бездельничать.
+                        //ЭТО ОКАЖЕТ ТОРМОЗНОЕ ДЕЙСТВИЕ НА ВСЮ СИСТЕМУ В ЦЕЛОМ, хотя отдельные нейроны, наоборот, могут активироваться
+                        /*
+                        if (responses[pat] > ca.rule.max_age)
+                        {
+                            //ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, 0);
+                            ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, ca.rule.max_age);
+                            service.hypophise_NONvaluable++;
+                        }
+                        else
+                        {
+                            ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, (short)responses[pat]);
+                            service.hypophise_valuable++;
+                        }
+                        */
+
+                        //if(responses[pat]%(ca.rule.max_age/2)==1)//нейрон стреляет не постоянно, а только каждый 1,max_age/2+1,...
+                        {
+                            short newval = (short)(GetAge(responses[pat]) + i); //до каждого следующего выхода аксона доходит меньше активности, т.к. 0-ой аксон смамый ранний, он дольше в системе и оброс большим кол-вом швановых клеток, везикул и т.п.
+                            short oldval = ca.cell[axon[i].i, axon[i].j, axon[i].k];
+                            if (oldval == 0)//в КА пустая клетка
+                                ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, newval);
+                            else
+                            {//в КА не пустая клетка
+                                ca.ChangeAgeByNeuron(axon[i].i, axon[i].j, axon[i].k, (short)((newval + oldval) / 2));//функция выпускает немного нейромедиатора в соседнюю случайную клетку
+                            }
+                        }
+
+
+                        //если аксон стреляет в никуда, он каждый цикл своей активности меняет свое положение, пока не найдет какой-то синапс какого-то нейрона
+                        if (axon[i].v != 1) DoAxonPlasticity(i);
+                    }
+
+                    //для гипофиза, пока его нет, его функцию заменяют сервисы, отслеживающие активность всей сети
                     if (responses[pat] > ca.rule.max_age)
                     {
-                        //ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, 0);
-                        ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, ca.rule.max_age);
                         service.hypophise_NONvaluable++;
                     }
                     else
                     {
-                        ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, (short)responses[pat]);
                         service.hypophise_valuable++;
                     }
-                    */
-                    if(responses[pat]%(ca.rule.max_age/2)==1)//нейрон стреляет не постоянно, а только каждый 1,max_age/2+1,...
-                    {
-                        short newval = (short)(GetAge(responses[pat]) + i); //до каждого следующего выхода аксона доходит меньше активности, т.к. 0-ой аксон смамый ранний, он дольше в системе и оброс большим кол-вом швановых клеток, везикул и т.п.
-                        short oldval = ca.cell[axon[i].i, axon[i].j, axon[i].k];
-                        if(oldval==0)//в КА пустая клетка
-                            ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, newval);
-                        else
-                        {//в КА не пустая клетка
-                            ca.ChangeAgeByNeuron(axon[i].i, axon[i].j, axon[i].k, (short)((newval + oldval) / 2));//функция выпускает немного нейромедиатора в соседнюю случайную клетку
+                }
+                else //у нейрона есть активность, но он не может стрельнуть, ибо настрелялся - запускается механизм долгосрочной памяти
+                {
+                    ////////// ЗАПИСЬ В ДНК ЗДЕСЬ!!!!!
+                    if ((responses_DNA_flags[pat] & 0b1011) == 0) //не ждем запись, не ждем чтения, не имеем запись
+                        if (responses[pat] >= Service.const_spikes_write_DNA & !service.decdecdec)//достигли порога записи в ДНК
+                        {
+                            if ((responses_DNA_flags[pat] & 0b1000) == 0) //если еще не ждем запись
+                            {
+                                service.queQueryToDnaWrite.Enqueue(new structDNAWriteQueue(number, pat, responses[pat]));
+                                responses_DNA_flags[pat] |= 0b1000; //ждем запись
+
+                                service.hyppocamp_value++;
+                            }
                         }
-                    }
-
-                    //если аксон стреляет в никуда, он каждый цикл своей активности меняет свое положение, пока не найдет какой-то синапс какого-то нейрона
-                    if (axon[i].v != 1) DoAxonPlasticity(i);
-                }
-                //для гипофиза, пока его нет, его функцию заменяют сервисы, отслеживающие активность всей сети
-                if (responses[pat] > ca.rule.max_age)
-                {
-                    service.hypophise_NONvaluable++;
-                }
-                else
-                {
-                    service.hypophise_valuable++;
                 }
 
-                ////////// ЗАПИСЬ В ДНК ЗДЕСЬ!!!!!
-                if (responses[pat]== Service.const_spikes_write_DNA & !service.decdecdec)//достигли порога записи в ДНК
-                {
-                    if((responses_DNA_flags[pat] & 0b1000) > 0) //если уже не ждем запись
-                    {
-                        service.queQueryToDnaWrite.Enqueue(new structDNAWriteQueue(number, pat, responses[pat]));
-                        responses_DNA_flags[pat] |= 0b1000; //ждем запись
-
-                        service.hyppocamp_value++;
-                    }
-                }
 
                 /////А ЭТО ЗАПИСЬ В ДНК ПРИ КОММАНДЕ СВЕРХУ ОТ ГИППОКАМПА (ЛЮБЫЕ ПОЛОЖИТЕЛЬНЫЕ ОТВЕТЫ СЕЙЧАС ЗАПОМИНАЮТСЯ В ДНК)
                 if(service.dnadnadna && !service.decdecdec)//у нас положительный ответ - это раз. у нас сигнал от гиппокампа запомнить это-это два, и  у нас нет подавления переобучаемости в гиппофизе
@@ -687,9 +708,9 @@ public class NeuronSum: Neuron
             {
                 if (synapses[i].v == 0)//слишком долго молчит синапс, пусть поищет себе новый дом
                 {
-                    synapses[i].i = (short)Service.RandomRange(synapses[i].i - 2, synapses[i].i + 3);
-                    synapses[i].j = (short)Service.RandomRange(synapses[i].j - 2, synapses[i].j + 3);
-                    synapses[i].k = (short)Service.RandomRange(synapses[i].k - 2, synapses[i].k + 3);
+                    synapses[i].i = (short)Service.RandomRange(synapses[i].i - 1, synapses[i].i + 2);
+                    synapses[i].j = (short)Service.RandomRange(synapses[i].j - 1, synapses[i].j + 2);
+                    synapses[i].k = (short)Service.RandomRange(synapses[i].k - 1, synapses[i].k + 2);
 
                     if (synapses[i].i < 0) synapses[i].i = 0; if (synapses[i].j < 0) synapses[i].j = 0; if (synapses[i].k < 0) synapses[i].k = 0;
                     if (synapses[i].i >= ca.lenght) synapses[i].i = (short)(ca.lenght - 1); if (synapses[i].j >= ca.height) synapses[i].j = (short)(ca.height - 1); if (synapses[i].k >= ca.width) synapses[i].k = (short)(ca.width - 1);
@@ -706,6 +727,7 @@ public class NeuronSum: Neuron
     public override ushort GetPattern(ref List<int> syn)
     {
         ushort pat = 0; ushort synapse_val = 0;
+        bool dosynsearchalready = false;
         for (ushort i = 0; i < 16; i++)
         {
             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) //синапса нет такого еще у нейрона
@@ -713,12 +735,13 @@ public class NeuronSum: Neuron
             synapse_val = (ushort)(ca.cell[synapses[i].i, synapses[i].j, synapses[i].k]);//для этого типа нейронов, значения в КА важны, т.к. он сумиирует все свои синапсы
              
             pat += (ushort)(synapse_val);
-            if (synapse_val >= 1)
+            if (synapse_val >= 1 && !dosynsearchalready)
             {
                 syn.Add(i);
                 if(++synapses[i].v>= const_syn_search)//пора молчащим синапсам поискать себе новый дом поблизости
                 {
                     DoSynSearch();
+                    dosynsearchalready = true;
                 }
             }
             
@@ -730,8 +753,8 @@ public class NeuronSum: Neuron
 //Нейрон-сумматор, способный выдавать спайки в обратную сторону. 
 public class NeuronDendSpike : Neuron
 {
-    public const ushort const_is_dend_func = 8; //если на синапсах меньше (т.е. много веществ) этого числа - есть шанс пукнуть в нулевые синапсы
-    public const ushort const_max_syn_dend = 12345;    //если любой синапс достиг такого значения, мы пукаем в синапсы без значений единицу и обнуляем все накопления
+    public const ushort const_is_dend_func = 15; //если на синапсах меньше (т.е. много веществ) этого числа - есть шанс пукнуть в нулевые синапсы
+    public const ushort const_max_syn_dend = 8345;    //если любой синапс достиг такого значения, мы пукаем в синапсы без значений единицу и обнуляем все накопления
 
     public override char GetTypeNeuron() { return 'd'; }
 

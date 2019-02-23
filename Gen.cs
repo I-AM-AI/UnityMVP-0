@@ -70,7 +70,7 @@ public class Gen : MonoBehaviour
                 }
             }
         }
-
+       
     }
 
 
@@ -193,7 +193,7 @@ public class Gen : MonoBehaviour
 
         //if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
         string blabla="";
-        if (volume>0.5)
+        if (volume>3.8f)
         {//говорит и показыват КА
 
             byte[] b = new byte[12];
@@ -204,7 +204,7 @@ public class Gen : MonoBehaviour
                 for (int j = 1; j < height - 1; j++)
                 {
                     int tt = 0;
-                    for (int k = 1; k < width - 1; k++)
+                    for (int k = 2; k < width - 2; k++)
                     {
                         tt += ca.cell[i, j, k];
                         v += tt;
@@ -227,7 +227,7 @@ public class Gen : MonoBehaviour
             Debug.Log(blabla);
             
             WindowsVoice.speak(blabla);
-            n.dna.WriteDebug(blabla);
+            n.dna.WriteDebug(blabla,0,volume,"");
             
         }
         textDebug.text = "v: "+ volume.ToString() + " bla: " + blabla;
