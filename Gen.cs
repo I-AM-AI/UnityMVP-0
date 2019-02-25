@@ -728,4 +728,14 @@ public class Gen : MonoBehaviour
         n.AddSomeNeuronRandom(10, 'c');
     }
 
+    ~Gen()
+    {
+        
+        
+        n.ca = null;
+        n.service = null;
+        n.dna = null;       
+        n = null;
+
+    }
 }

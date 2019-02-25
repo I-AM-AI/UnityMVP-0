@@ -154,10 +154,10 @@ public class Service
 
     public Service()
     {
-        queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(1000);        
-        queQueryNewNeuron = new FixedSizedQueueConcurent<int>(1000);
-        queQueryToDnaWrite = new FixedSizedQueueConcurent<structDNAWriteQueue>(1000);
-        queQueryAxonToSyn = new FixedSizedQueueConcurent<AxonToSyn>(1000);
+        queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(100000);        
+        queQueryNewNeuron = new FixedSizedQueueConcurent<int>(100000);
+        queQueryToDnaWrite = new FixedSizedQueueConcurent<structDNAWriteQueue>(100000);
+        queQueryAxonToSyn = new FixedSizedQueueConcurent<AxonToSyn>(100000);
     }
 }
 
@@ -175,7 +175,7 @@ public class Neuron : NeuronBase
     public Coord[] synapses;               //номера синапсов в КА [0-ой синапс, 1-ый синапс,...]
     public Coord[] axon;                   //на какие ячейки влияет аксон
 
-    public short[] responses;               //ОЗУ - ответы на патерны из синапсов, 65535 ответов, ответа на патерн 0 нет, и ответ 0 означает, что ответа нет
+    public short[] responses;               //ОЗУ - ответы на патерны из синапсов, 65535/2 ответов, ответа на патерн 0 нет, и ответ 0 означает, что ответа нет
     public byte[] responses_DNA_flags;     //флаги на каждый ответ ОЗУ:  (не запоминается в ДНК)
                                            //0b0000 - нет флагов
                                            //0b0001 - спрашивали? отвечаем: реакция записана в ДНК нейрона
@@ -194,42 +194,6 @@ public class Neuron : NeuronBase
     private byte neuromediator_val;         //запас нейромедиатора. Пополняется на единицу, на каждом Do() до CONST_NEUROMEDIATOR_CACHE и уменьшается до 0. Влияет на функцию передачи сообщения выше
 
     public override char GetTypeNeuron() { return 'c'; }
-    //конструктор случайного нейрона
-    public Neuron(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv) //конструктор принимает ссылку на ящик, ссылку на очереди МАП, ссылку на сервисы
-    {
-        number = num;
-        ca = cla;                   //коробка
-        synapses = new Coord[16];       //у нерйона максимум 16 синапсов 
-        for(int i=0;i<6;i++)            //сделаем 6 синапсов в случайных местах коробки
-        {
-            synapses[i].i = (short)(Service.RandomRange(0, ca.lenght));
-            synapses[i].j = (short)(Service.RandomRange(0, ca.height));
-            synapses[i].k = (short)(Service.RandomRange(0, ca.width));
-
-            //синапс 0,0,0 - служебный, у него нет нейронов
-            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
-        }
-        responses = new short[65536];     //65536 ответов
-        responses_DNA_flags = new byte[65536];//и флагов к ним
-
-        axon = new Coord[16];           //максимум нейрон может повлиять на 16 ячеек
-        //у нового нейрона пока только один выход, сгенерируем его местоположение в коробке
-        axon[0].i = (short)(Service.RandomRange(0, ca.lenght));
-        axon[0].j = (short)(Service.RandomRange(0, ca.height));
-        axon[0].k = (short)(Service.RandomRange(0, ca.width));
-
-        //рожаем номера групп для МАП
-        MAPa = new short[Service.CONST_MAP_COUNT_PER_NEURON];
-        for(int i=0;i< Service.CONST_MAP_COUNT_PER_NEURON; i++)
-        {
-            MAPa[i]= (short)(Service.RandomRange(0, Service.CONST_MAP_QUEUES)); //номер группы
-        }
-
-        mapQue = mq;//ссылка на очереди МАП
-        MAPtable = new int[16]; //таблица МАП
-
-        service = serv;
-    }
 
     //конструктор нейрона с заданными синапсами и аксонами
     public Neuron(int num, ref CellularAutamata3D cla, Coord[] syns, Coord[] axs, ref MAPQueue mq, ref Service serv)
@@ -272,6 +236,43 @@ public class Neuron : NeuronBase
         MAPtable = new int[16]; //таблица МАП
 
         neuromediator_val = (byte)Service.RandomRange(0, Service.CONST_NEUROMEDIATOR_CACHE);
+    }
+
+    public Neuron(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv)
+    {
+
+        number = num;
+        ca = cla;                   //коробк
+
+        responses = new short[65536];     //65535 ответов
+        responses_DNA_flags = new byte[65536];//и флагов к ним
+
+        synapses = new Coord[16];
+        axon = new Coord[16];
+
+        //рожаем номера групп для МАП
+        int countMAP = Service.RandomRange(1, 16); //количество групп
+        MAPa = new short[countMAP];
+        for (int i = 0; i < countMAP; i++)
+        {
+            MAPa[i] = (short)(Service.RandomRange(0, 255)); //номер группы
+        }
+
+        mapQue = mq;
+        service = serv;
+
+        MAPtable = new int[16]; //таблица МАП
+
+        neuromediator_val = (byte)Service.RandomRange(0, Service.CONST_NEUROMEDIATOR_CACHE);
+    }
+
+    public void SetSyn(int i, Coord newsyn)
+    {
+        synapses[i] = newsyn;
+    }
+    public void SetAx(int i, Coord newax)
+    {
+        axon[i] = newax;
     }
 
     public short GetActivityForMAP(float time, int power)
@@ -686,7 +687,7 @@ public class NeuronSum: Neuron
     public override char GetTypeNeuron() { return 's'; }
     public const ushort const_syn_search = 65000;
 
-    //случайный суммирующий нейроно
+    //
     public NeuronSum(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv)
         : base( num, ref cla, ref  mq, ref serv)
     {
@@ -758,7 +759,7 @@ public class NeuronDendSpike : Neuron
 
     public override char GetTypeNeuron() { return 'd'; }
 
-    //случайный суммирующий нейроно
+    //
     public NeuronDendSpike(int num, ref CellularAutamata3D cla, ref MAPQueue mq, ref Service serv)
         : base(num, ref cla, ref mq, ref serv)
     {

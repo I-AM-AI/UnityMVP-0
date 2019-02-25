@@ -111,8 +111,8 @@ public class DNA
     //прочитать из базы, есть ли синапс, соответствующий аксону
     public bool IsAxonToSynapseOne()
     {
-        AxonToSyn axsyn;
-        if (service.queQueryAxonToSyn.TryDequeue(out axsyn))//добавление в систему нового нейрона
+        AxonToSyn axsyn=new AxonToSyn();
+        if (service.queQueryAxonToSyn.TryDequeue(out axsyn))
         {
             dbcmd = dbconn.CreateCommand();
             dbcmd.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + nn[axsyn.neuron].axon[axsyn.axon].i.ToString() + " AND j=" + nn[axsyn.neuron].axon[axsyn.axon].j.ToString() + " AND k=" + nn[axsyn.neuron].axon[axsyn.axon].k.ToString();
@@ -120,8 +120,7 @@ public class DNA
             if (reader.Read())
             {
 
-                nn[axsyn.neuron].axon[axsyn.axon].v = 1;//это укажет нейрону, что его аксон теперь соединен по крайней мере с одним синапсом
-                Debug.Log(axsyn.neuron + " АКСОН НАШЕЛ СЕБЕ МЕСТО!");
+                nn[axsyn.neuron].axon[axsyn.axon].v = 1;//это укажет нейрону, что его аксон теперь соединен по крайней мере с одним синапсом                
             }
             else
             {
@@ -138,8 +137,10 @@ public class DNA
         structDNAReadQueue res=new structDNAReadQueue();
         if(service.queQueryToDnaRead.TryDequeue(out res))
         {
+            
+
             dbcmd = dbmemory.CreateCommand();
-            string sqlQuery = "SELECT id, neuron, pattern, response FROM DNA WHERE neuron="+ res.neuronNumber.ToString() + " AND pattern=" + res.pattern.ToString() + " LIMIT 1";
+            string sqlQuery = "SELECT id, neuron, pattern, response FROM DNA WHERE neuron="+ res.neuronNumber + " AND pattern=" + res.pattern + " LIMIT 1";
             dbcmd.CommandText = sqlQuery;
             reader= dbcmd.ExecuteReader();
 
@@ -147,9 +148,9 @@ public class DNA
             {
                 //Debug.Log("считано из ДНК значение ответа Нейрона");
                 int id= reader.GetInt32(0);
-                ushort ne = (ushort)reader.GetInt32(1);//номер нейрона
+                int ne = reader.GetInt32(1);//номер нейрона
                 ushort pat = (ushort)reader.GetInt32(2);//паттерн
-                short val = (short)reader.GetInt32(3);//значение
+                short val = reader.GetInt16(3);//значение
 
                 //устанавливаем ответ нейрона таким, раз он спрашивал себе свою память
                 nn[ne].responses[pat] = val;
@@ -277,7 +278,7 @@ public class DNA
 
         Service s = new Service();
         MAPQueue mq = new MAPQueue();        
-        List<Neuron> nn = new List<Neuron>();
+        
 
 
         dbcmd = dbconn.CreateCommand();
@@ -297,65 +298,54 @@ public class DNA
             cla = new CellularAutamata3D(le, he, wi, rule, true);
 
         reader.Close();
+        /*
+                dbcmd = dbconn.CreateCommand();
+                dbcmd.CommandText = "SELECT count(id) FROM NEURONS";
+                reader = dbcmd.ExecuteReader();
+                reader.Read();
+                int ncount = reader.GetInt32(0);
+          */
+        List<Neuron> nn = new List<Neuron>();
 
         dbcmd = dbconn.CreateCommand();
         dbcmd.CommandText = "SELECT neuron, typen FROM NEURONS ORDER BY neuron ASC";
         reader = dbcmd.ExecuteReader();
         while (reader.Read())
         {
-            short nnumber = (short)reader.GetInt32(0);
+            int nnumber = reader.GetInt32(0);
             char nt = (char)reader.GetString(1).ToCharArray()[0];
 
-            Coord[] syns = new Coord[16];
-            Coord[] axs = new Coord[16];
-
-            dbcmd2 = dbconn.CreateCommand();
-            dbcmd2.CommandText = "SELECT synapse,i,j,k FROM SYNAPSES WHERE neuron="+nnumber.ToString()+" ORDER BY synapse ASC";
-            reader2 = dbcmd2.ExecuteReader();
-            int i = 0;
-            while (reader2.Read())
+            if (nt == 's')//суммирующий нейрон
             {
-                syns[i].i = reader2.GetInt16(1);
-                syns[i].j = reader2.GetInt16(2);
-                syns[i].k = reader2.GetInt16(3);
-                i++;
+                nn.Add(new NeuronSum(nnumber, ref cla, ref mq, ref s));
             }
-
-            dbcmd2 = dbconn.CreateCommand();
-            dbcmd2.CommandText = "SELECT axon,i,j,k FROM AXONS WHERE neuron=" + nnumber.ToString() + " ORDER BY axon ASC";
-            reader2 = dbcmd2.ExecuteReader();
-            i = 0;
-            while (reader2.Read())
+            else if (nt == 'c')//структурный
             {
-                axs[i].i = reader2.GetInt16(1);
-                axs[i].j = reader2.GetInt16(2);
-                axs[i].k = reader2.GetInt16(3);
-                i++;
-            }
-            for(int a=0;a<axs.Length;a++)
-            {
-                dbcmd2 = dbconn.CreateCommand();
-                dbcmd2.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + axs[a].i.ToString() + " AND j=" + axs[a].j.ToString() + " AND k=" + axs[a].k.ToString();
-                reader2 = dbcmd2.ExecuteReader();
-                if(reader2.Read())
-                {
-                    axs[a].v = 1;//это укажет нейрону, что его аксон соединен по крайней мере с одним синапсом
-                }
-            }
-
-            if (nt=='s')//суммирующий нейрон
-            {
-                nn.Add(new NeuronSum(nnumber, ref cla, syns, axs, ref mq, ref s));
-            }
-            else if(nt=='c')//структурный
-            {
-                nn.Add(new Neuron(nnumber, ref cla, syns, axs, ref mq, ref s));
+                nn.Add(new Neuron(nnumber, ref cla, ref mq, ref s));
             }
             else if (nt == 'd')//суммирующий, дендритопёрдный
             {
-                nn.Add(new NeuronDendSpike(nnumber, ref cla, syns, axs, ref mq, ref s));
+                nn.Add(new NeuronDendSpike(nnumber, ref cla, ref mq, ref s));
             }
+        }
 
+        dbcmd2 = dbconn.CreateCommand();
+        dbcmd2.CommandText = "SELECT neuron,synapse,i,j,k FROM SYNAPSES ORDER BY neuron ASC";
+        reader2 = dbcmd2.ExecuteReader();
+        while (reader2.Read())
+        {
+            Coord syn = new Coord(); syn.i = reader2.GetInt16(2); syn.j = reader2.GetInt16(3); syn.k = reader2.GetInt16(4);
+            nn[reader2.GetInt32(0)].SetSyn(reader2.GetInt16(1), syn);
+        }
+
+        dbcmd2 = dbconn.CreateCommand();
+        dbcmd2.CommandText = "SELECT neuron,axon,i,j,k FROM AXONS ORDER BY neuron ASC";
+        reader2 = dbcmd2.ExecuteReader();
+
+        while (reader2.Read())
+        {
+            Coord ax = new Coord(); ax.i = reader2.GetInt16(2); ax.j = reader2.GetInt16(3); ax.k = reader2.GetInt16(4);
+            nn[reader2.GetInt32(0)].SetAx(reader2.GetInt16(1), ax);
         }
 
         Debug.Log("Считано нейронов: " + nn.Count);

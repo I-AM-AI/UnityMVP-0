@@ -218,7 +218,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
                     nn[i].Realign();//и еще меньше x случайных нейронов перестраивают входы и выходы, если не обчулись до сих пор
             }
         }
-
+       
     }
 
     //private void Do
@@ -293,8 +293,13 @@ public class NeuroNet//рабочий класс - обертка, он созд
         }
         
     }
-        public void Sleep()
+    public void Sleep()
     {
         dna.Sleep(ref ca);
+    }
+
+    ~NeuroNet()
+    {
+        nn = null;
     }
 }
