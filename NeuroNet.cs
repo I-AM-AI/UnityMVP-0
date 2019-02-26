@@ -15,7 +15,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
     public CellularAutamata3D ca;
 
-    Thread myThread1, myThread2, myThread3,myThread4, myThread5;
+    Thread myThread1, myThread2, myThread3,myThread4, myThread5, dnaMEMThread,dnaDISCThread;
 
     //сеть из готовых данных (из ДНК)
     public NeuroNet(ref CellularAutamata3D cla, ref Service s, ref MAPQueue mpq, ref List<Neuron> ln, ref DNA d)
@@ -30,6 +30,9 @@ public class NeuroNet//рабочий класс - обертка, он созд
         myThread3 = new Thread(new ThreadStart(DoNeuronsThread));
         myThread4 = new Thread(new ThreadStart(DoNeuronsThread));
         myThread5 = new Thread(new ThreadStart(DoNeuronsThread));
+
+        dnaMEMThread = new Thread(new ThreadStart(DnaMemoryThread));
+        dnaDISCThread = new Thread(new ThreadStart(DnaDiscThread));
     }
 
     public NeuroNet(ref CellularAutamata3D cla)//рожаем произвольную сеть
@@ -252,10 +255,22 @@ public class NeuroNet//рабочий класс - обертка, он созд
         //Debug.Log("87000");
     }
 
-    //private void Do
     public void DoServices()
     {
         service.Time_realtimeSinceStartup = Time.realtimeSinceStartup;
+
+        if (!dnaMEMThread.IsAlive)
+        {
+            dnaMEMThread = new Thread(new ThreadStart(DnaMemoryThread));
+            dnaMEMThread.Start();
+        }
+
+        if (!dnaDISCThread.IsAlive)
+        {
+            dnaDISCThread = new Thread(new ThreadStart(DnaDiscThread));
+            dnaDISCThread.Start();
+        }
+
 
         if (service.decdecdec)//если включено торможение, проверяем, не пора ли выключить
         {
@@ -275,57 +290,79 @@ public class NeuroNet//рабочий класс - обертка, он созд
                 Debug.Log("ТОРМОЖЕНИЕ ТОРМОЖЕНИЯ ВКЛЮЧЕНО!");
             }
         }
+    }
 
-        if(service.dnadnadna) //если обучение достигло пика и все пишем в ДНК, то проверим, не пора ли выключить выделение этого гормона
+    //поток чтения-записи в памяти
+    private void DnaMemoryThread()
+    {
+        if (service.dnadnadna) //если обучение достигло пика и все пишем в ДНК, то проверим, не пора ли выключить выделение этого гормона
         {
-            float val = service.hyppocamp_value * 1 / Service.const_hyppo_ave + service.hyppocamp_prev * (Service.const_hyppo_ave-1) / Service.const_hyppo_ave;
-            if (val < Service.const_hyppocamp_stop )//процент обученных нейронов меньше порога
+            float val = service.hyppocamp_value * 1 / Service.const_hyppo_ave + service.hyppocamp_prev * (Service.const_hyppo_ave - 1) / Service.const_hyppo_ave;
+            if (val < Service.const_hyppocamp_stop)//процент обученных нейронов меньше порога
             {//выключаем экспрессию генов
                 service.dnadnadna = false;
                 Debug.Log("ВЫКЛЮЧЕНА экспрессия генов!");
             }
             dna.WriteAll();//торопимся успеть все записать, пока включена экспрессия
         }
-        else 
+        else
         {
-            float val = service.hyppocamp_value * 1 / Service.const_hyppo_ave + service.hyppocamp_prev * (Service.const_hyppo_ave-1) / Service.const_hyppo_ave;
+            float val = service.hyppocamp_value * 1 / Service.const_hyppo_ave + service.hyppocamp_prev * (Service.const_hyppo_ave - 1) / Service.const_hyppo_ave;
             //Debug.Log(val);
-            if (val>Service.const_hyppocamp_start)
+            if (val > Service.const_hyppocamp_start)
             {
                 service.dnadnadna = true;
                 Debug.Log("Экспрессия генов ВКЛЮЧЕНА!");
             }
-            
+
         }
         service.hyppocamp_prev = service.hyppocamp_value;
         service.hyppocamp_value = 0;
 
+        for (int i = 0; i <100;i++)
+        {
+            dna.ReadOne();
+            dna.WriteOne();
+        }
+    }
 
-        dna.WriteOne();
-        dna.ReadOne();
-        dna.IsAxonToSynapseOne();
+    //поток чтения-записи на диске
+    private void DnaDiscThread()
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            dna.IsAxonToSynapseOne();
+            dna.SynapseUpdateOrCreateOne();
+            dna.AxonUpdateOrCreateOne();
+            dna.WriteDebugOne();
+        }
 
         int new_neu;
-        if(service.queQueryNewNeuron.TryDequeue(out new_neu))//добавление в систему нового нейрона
+        if (service.queQueryNewNeuron.TryDequeue(out new_neu))//добавление в систему нового нейрона
         {
             //у нового нейрона такие же синапсы и аксоны как у родителя
             //и ответы пока не придумал как ставить, пусть типа нет ответов пока
             char typen = nn[new_neu].GetTypeNeuron();
             Neuron neu;
 
-            if (typen=='c')// структурный
-                neu = new Neuron(nn.Count, ref ca,  nn[new_neu].synapses, nn[new_neu].axon,ref mq,ref service);
+            if (typen == 'c')// структурный
+                neu = new Neuron(nn.Count, ref ca, nn[new_neu].synapses, nn[new_neu].axon, ref mq, ref service);
             else if (typen == 's')// суммирующий
                 neu = new NeuronSum(nn.Count, ref ca, nn[new_neu].synapses, nn[new_neu].axon, ref mq, ref service);
             else //дендритный
                 neu = new NeuronDendSpike(nn.Count, ref ca, nn[new_neu].synapses, nn[new_neu].axon, ref mq, ref service);
 
             nn.Add(neu);
+            dna.AddNeuron(neu.number);
         }
-        
     }
+
     public void Sleep()
     {
+        //ждем, пока не закончится потоки чтения-записи
+        while (dnaMEMThread.IsAlive) { }
+        while (dnaDISCThread.IsAlive) { }
+
         dna.Sleep(ref ca);
     }
 

@@ -90,8 +90,12 @@ public struct AxonToSyn
 
 public class Service
 {
+    public FixedSizedQueueConcurent<structDNADebugQueue> queQueryDebugWrite;  //очередь отладочной инфы
+
     public FixedSizedQueueConcurent<structDNAReadQueue> queQueryToDnaRead;  //очередь запросов на чтение из ДНК
     public FixedSizedQueueConcurent<structDNAWriteQueue> queQueryToDnaWrite;  //очередь запросов на запись из ДНК
+    public FixedSizedQueueConcurent<structDNASynAxUpdateQueue> queQuerySynWrite;  //очередь записи изменений в структуре синапсов 
+    public FixedSizedQueueConcurent<structDNASynAxUpdateQueue> queQueryAxWrite;  //очередь записи изменений в структуре  аксонов
 
     public FixedSizedQueueConcurent<int> queQueryNewNeuron;         //очередь запросос на создание нового нейрона в системе
     public FixedSizedQueueConcurent<AxonToSyn> queQueryAxonToSyn;         //очередь запросос на создание нового нейрона в системе
@@ -138,7 +142,7 @@ public class Service
     public const short const_timesLive_before_realign = 23456;   //если за это количество циклов нейрон ничему не научился, мы его переделывам
     public const short CONST_DNA_RESPONSE_TO_WAKE = 99;    //все ответы больше равно этого, при просыпании попадают в ОЗУ, остальные случайно
 
-    public const byte CONST_NEUROMEDIATOR_CACHE = 200;     //начальное количество нейромедиатора в везикулах. Усталость. Нейрон не будет стрелять, если оно упало до CONST_NEUROMEDIATOR_LOW
+    public const byte CONST_NEUROMEDIATOR_CACHE = 131;     //начальное количество нейромедиатора в везикулах. Усталость. Нейрон не будет стрелять, если оно упало до CONST_NEUROMEDIATOR_LOW
     public const byte CONST_NEUROMEDIATOR_LOW = 33;        //количество нейромедиатора в везикулах при котором Нейрон не будет стрелять
 
     public float Time_realtimeSinceStartup;
@@ -156,8 +160,11 @@ public class Service
     {
         queQueryToDnaRead = new FixedSizedQueueConcurent<structDNAReadQueue>(100000);        
         queQueryNewNeuron = new FixedSizedQueueConcurent<int>(100000);
+        queQuerySynWrite= new FixedSizedQueueConcurent<structDNASynAxUpdateQueue>(100000);
+        queQueryAxWrite= new FixedSizedQueueConcurent<structDNASynAxUpdateQueue>(100000) ;
         queQueryToDnaWrite = new FixedSizedQueueConcurent<structDNAWriteQueue>(100000);
         queQueryAxonToSyn = new FixedSizedQueueConcurent<AxonToSyn>(100000);
+        queQueryDebugWrite = new FixedSizedQueueConcurent<structDNADebugQueue>(10000);
     }
 }
 
@@ -189,7 +196,7 @@ public class Neuron : NeuronBase
     private MAPQueue        mapQue;                 //ссылка на очереди этих групп для МАП
     private int[]           MAPtable;               //непосредственно таблица МАП, состоящая из 16 значений. Индекс - номер синапса, значение - сила ассоциации
 
-    private Service         service;                //сервисы главного модуля, к которым нейрон может обращаться
+    internal Service         service;                //сервисы главного модуля, к которым нейрон может обращаться
 
     private byte neuromediator_val;         //запас нейромедиатора. Пополняется на единицу, на каждом Do() до CONST_NEUROMEDIATOR_CACHE и уменьшается до 0. Влияет на функцию передачи сообщения выше
 
@@ -446,7 +453,8 @@ public class Neuron : NeuronBase
 
                             //синапс 0,0,0 - служебный, у него нет нейронов
                             if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
-
+                            //сразу добавим в базу
+                            service.queQuerySynWrite.Enqueue(new structDNASynAxUpdateQueue(number, i));
                             break;
                         }
                     }
@@ -466,7 +474,8 @@ public class Neuron : NeuronBase
 
                             //синапс 0,0,0 в КА - служебный, у него нет нейронов
                             if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) axon[i].k = 1;
-
+                            //сразу добавим в базу
+                            service.queQueryAxWrite.Enqueue(new structDNASynAxUpdateQueue(number, i));
                             break;
                         }
                     }
@@ -527,6 +536,9 @@ public class Neuron : NeuronBase
 
             if (axon[a].i == 0 && axon[a].j == 0 && axon[a].k == 0)//такого не бывает
                 axon[a].k = 1;
+
+            //сразу добавим в базу
+            service.queQueryAxWrite.Enqueue(new structDNASynAxUpdateQueue(number, a));
 
             axon[a].v = 2;//метка, что в данный момент мы спрашиваем, есть ли в ДНК такое           
 
@@ -667,9 +679,11 @@ public class Neuron : NeuronBase
             if (synapses[i].i >= ca.lenght) synapses[i].i = (short)(ca.lenght-1); if (synapses[i].j >= ca.height) synapses[i].j = (short)(ca.height - 1); if (synapses[i].k >= ca.width) synapses[i].k = (short)(ca.width - 1);
 
             //синапс 0,0,0 - служебный, у него нет нейронов
-            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;            
+            if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
+            //сразу добавим в базу
+            service.queQuerySynWrite.Enqueue(new structDNASynAxUpdateQueue(number, i));
         }
-       
+
         /*
         //у нового нейрона пока только один выход, сгенерируем его местоположение в коробке
         axon[0].i = (short)(Service.RandomRange(0, ca.lenght));
@@ -720,6 +734,8 @@ public class NeuronSum: Neuron
 
                     //синапс 0,0,0 - служебный, у него нет нейронов
                     if (synapses[i].i == 0 && synapses[i].j == 0 && synapses[i].k == 0) synapses[i].k = 1;
+                    //сразу добавим в базу
+                    service.queQuerySynWrite.Enqueue(new structDNASynAxUpdateQueue(number, i));
                 }
                 else synapses[i].v = 0;//обнулим для будущих движений
             }

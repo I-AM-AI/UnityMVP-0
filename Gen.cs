@@ -100,8 +100,7 @@ public class Gen : MonoBehaviour
         {
             ca.queChangeAgeFunc();
             n.Do();
-            //играем музыку
-            PlayMusic();
+            
 
             n.DoServices();
 
@@ -137,6 +136,9 @@ public class Gen : MonoBehaviour
             breathe_bit++; ceur_bit++;         
             
             Step();
+
+            //играем музыку
+            PlayMusic();
         }
     }
     public void textToBox(string text)
@@ -193,7 +195,7 @@ public class Gen : MonoBehaviour
 
         //if (volume > 1) volume = 1; else if (volume < 0) volume = 0;
         string blabla="";
-        if (volume>3.8f)
+        if (volume>4f)
         {//говорит и показыват КА
 
             byte[] b = new byte[12];
@@ -227,7 +229,7 @@ public class Gen : MonoBehaviour
             Debug.Log(blabla);
             
             WindowsVoice.speak(blabla);
-            n.dna.WriteDebug(blabla,0,volume,"");
+            n.service.queQueryDebugWrite.Enqueue(new structDNADebugQueue(blabla, 0, volume, ""));
             
         }
         textDebug.text = "v: "+ volume.ToString() + " bla: " + blabla;
@@ -290,7 +292,7 @@ public class Gen : MonoBehaviour
         if (run)
         {
             po.PlayNote(60); po.PlayNote(64); po.PlayNote(70);
-            n.dna.WriteDebug("start");
+            n.service.queQueryDebugWrite.Enqueue(new structDNADebugQueue("start"));
         }
         else
         {

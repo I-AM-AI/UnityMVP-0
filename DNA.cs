@@ -1,10 +1,33 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using Mono.Data.Sqlite;
 using System.Data;
 using CellularAutamata;
-using UnityEngine.UI;
+
+public struct structDNASynAxUpdateQueue
+{
+    public int n;
+    public int h;
+
+    public structDNASynAxUpdateQueue(int neuronNum, int hand)
+    {
+        n = neuronNum;
+        h = hand;
+    }
+}
+
+public struct structDNADebugQueue
+{
+    public string dText;
+    public int dInt;
+    public float dFloat;
+    public string dComment;
+
+    public structDNADebugQueue(string debugText = "", int debugInt = 0, float debugFloat = 0, string comment = "")
+    {
+        dText = debugText; dInt = debugInt; dFloat = debugFloat; dComment = comment;
+    }
+}
 
 public struct structDNAReadQueue
 {
@@ -35,8 +58,8 @@ public struct structDNAWriteQueue
 public class DNA
 {
     IDbConnection dbconn,dbmemory;
-    IDbCommand dbcmd;
-    IDataReader reader;
+    IDbCommand dbcmdmem, dbcmddisc;
+    IDataReader readermem,readerdisc;
 
     List<Neuron> nn;        //сетка нейронов (ну, или не сетка)))
     Service service;
@@ -51,34 +74,34 @@ public class DNA
         //переносим базу в память
         dbmemory = new SqliteConnection("URI=file::memory:,version=3");
         dbmemory.Open();
-        dbcmd=dbmemory.CreateCommand();
-        dbcmd.CommandText = "CREATE TABLE DNA (id INTEGER PRIMARY KEY UNIQUE NOT NULL, neuron INTEGER NOT NULL, pattern  INTEGER NOT NULL, response INTEGER NOT NULL);";
-        dbcmd.ExecuteNonQuery();
+        dbcmdmem=dbmemory.CreateCommand();
+        dbcmdmem.CommandText = "CREATE TABLE DNA (id INTEGER PRIMARY KEY UNIQUE NOT NULL, neuron INTEGER NOT NULL, pattern  INTEGER NOT NULL, response INTEGER NOT NULL);";
+        dbcmdmem.ExecuteNonQuery();
 
 
         using (IDbCommand ic= dbmemory.CreateCommand())
         {
             //есть ли чего-то в ДНК?
-            dbcmd = dbconn.CreateCommand();
-            dbcmd.CommandText = "SELECT count(id) FROM DNA";
-            int count = System.Convert.ToInt32(dbcmd.ExecuteScalar());
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "SELECT count(id) FROM DNA";
+            int count = System.Convert.ToInt32(dbcmddisc.ExecuteScalar());
             if (count > 0)
             {
-                dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "select neuron, pattern, response from dna order by response desc";//самые сильные ответы идут первыми
-                reader = dbcmd.ExecuteReader();
+                dbcmddisc = dbconn.CreateCommand();
+                dbcmddisc.CommandText = "select neuron, pattern, response from dna order by response desc";//самые сильные ответы идут первыми
+                readerdisc = dbcmddisc.ExecuteReader();
                 string query = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
                 int ne;
                 ushort pa;
                 short re;
-                while (reader.Read())
+                while (readerdisc.Read())
                 {
-                    ne = reader.GetInt32(0);
-                    pa = (ushort)reader.GetInt32(1);
-                    re = reader.GetInt16(2);
+                    ne = readerdisc.GetInt32(0);
+                    pa = (ushort)readerdisc.GetInt32(1);
+                    re = readerdisc.GetInt16(2);
                     query += "(" + ne.ToString() + ", " + pa.ToString() + ", " + re.ToString() + "),";
-                    //заполняем значениями ответов из ДНК только 50% случайных ответов нейронов (остальное пусть вспоминает, если надо)
-                    if ((usebase && Random.Range(0,100)>50) || re>=Service.CONST_DNA_RESPONSE_TO_WAKE)//если же ответ большой, он сразу попадает и не удаляется, но может переобучиться
+                    //заполняем значениями ответов из ДНК только % случайных ответов нейронов (остальное пусть вспоминает, если надо)
+                    if ((usebase && Random.Range(0,100)>10) || re>=Service.CONST_DNA_RESPONSE_TO_WAKE)//если же ответ большой, он сразу попадает и не удаляется, но может переобучиться
                     {
                         //*
                         n[ne].responses[pa] = re;
@@ -114,10 +137,10 @@ public class DNA
         AxonToSyn axsyn=new AxonToSyn();
         if (service.queQueryAxonToSyn.TryDequeue(out axsyn))
         {
-            dbcmd = dbconn.CreateCommand();
-            dbcmd.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + nn[axsyn.neuron].axon[axsyn.axon].i.ToString() + " AND j=" + nn[axsyn.neuron].axon[axsyn.axon].j.ToString() + " AND k=" + nn[axsyn.neuron].axon[axsyn.axon].k.ToString();
-            reader = dbcmd.ExecuteReader();
-            if (reader.Read())
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "SELECT id FROM SYNAPSES WHERE i=" + nn[axsyn.neuron].axon[axsyn.axon].i.ToString() + " AND j=" + nn[axsyn.neuron].axon[axsyn.axon].j.ToString() + " AND k=" + nn[axsyn.neuron].axon[axsyn.axon].k.ToString();
+            readerdisc = dbcmddisc.ExecuteReader();
+            if (readerdisc.Read())
             {
 
                 nn[axsyn.neuron].axon[axsyn.axon].v = 1;//это укажет нейрону, что его аксон теперь соединен по крайней мере с одним синапсом                
@@ -139,31 +162,31 @@ public class DNA
         {
             
 
-            dbcmd = dbmemory.CreateCommand();
+            dbcmdmem = dbmemory.CreateCommand();
             string sqlQuery = "SELECT id, neuron, pattern, response FROM DNA WHERE neuron="+ res.neuronNumber + " AND pattern=" + res.pattern + " LIMIT 1";
-            dbcmd.CommandText = sqlQuery;
-            reader= dbcmd.ExecuteReader();
+            dbcmdmem.CommandText = sqlQuery;
+            readermem= dbcmdmem.ExecuteReader();
 
-            if(reader.Read())
+            if(readermem.Read())
             {
                 //Debug.Log("считано из ДНК значение ответа Нейрона");
-                int id= reader.GetInt32(0);
-                int ne = reader.GetInt32(1);//номер нейрона
-                ushort pat = (ushort)reader.GetInt32(2);//паттерн
-                short val = reader.GetInt16(3);//значение
+                int id= readermem.GetInt32(0);
+                int ne = readermem.GetInt32(1);//номер нейрона
+                ushort pat = (ushort)readermem.GetInt32(2);//паттерн
+                short val = readermem.GetInt16(3);//значение
 
                 //устанавливаем ответ нейрона таким, раз он спрашивал себе свою память
                 nn[ne].responses[pat] = val;
 
                 //устанавливаем флаги, что значение есть в ДНК, снимаем флаг запроса на чтение и флаг, что нет записи в ДНК
-                nn[ne].responses_DNA_flags[pat] = (byte)(nn[ne].responses_DNA_flags[pat] & 0b11111001);              
-                reader.Close();
+                nn[ne].responses_DNA_flags[pat] = (byte)(nn[ne].responses_DNA_flags[pat] & 0b11111001);
+                readermem.Close();
 
                 //*/УДАЛЯЕМ ЭТО ЗНАЧЕНИЕ ИЗ ДНК. РЕАЛИЗУЕМ ПРИНЦИП "ВСПОМНИЛ? - ЗАБУДЬ и ЗАПИШИ ЗАНОВО"
-                dbcmd = dbmemory.CreateCommand();
+                dbcmdmem = dbmemory.CreateCommand();
                 sqlQuery = "DELETE FROM DNA WHERE id=" + id.ToString();
-                dbcmd.CommandText = sqlQuery;
-                dbcmd.ExecuteNonQuery();
+                dbcmdmem.CommandText = sqlQuery;
+                dbcmdmem.ExecuteNonQuery();
                 //*/                
             }
             else
@@ -172,7 +195,7 @@ public class DNA
                 nn[res.neuronNumber].responses_DNA_flags[res.pattern] = (byte)((nn[res.neuronNumber].responses_DNA_flags[res.pattern] & 0b11111100) | 0b100);
                 //Debug.Log("в ДНК нет ответа на этот патерн Нейрона");
             }
-            reader.Close();
+            readermem.Close();
             return true; //читали очередь и базу читали
         }
         return false; //не могу прочитать очередь или в очереди нет ничего
@@ -183,10 +206,10 @@ public class DNA
         structDNAWriteQueue res = new structDNAWriteQueue();
         if (service.queQueryToDnaWrite.TryDequeue(out res))
         {
-            dbcmd = dbmemory.CreateCommand();
+            dbcmdmem = dbmemory.CreateCommand();
             string sqlQuery = "INSERT INTO DNA (neuron, pattern, response) VALUES (" +res.neuronNumber.ToString() + ", "+res.pattern.ToString() + ", "+ res.response.ToString() + ") ";
-            dbcmd.CommandText = sqlQuery;
-            int iswrited = dbcmd.ExecuteNonQuery();
+            dbcmdmem.CommandText = sqlQuery;
+            int iswrited = dbcmdmem.ExecuteNonQuery();
 
             if (iswrited>0)//таки записали в ДНК
             {
@@ -194,8 +217,6 @@ public class DNA
 
                 //устанавливаем флаги, что значение есть в ДНК, снимаем флаг запроса на запись и флаг, что нет записи в ДНК
                 nn[res.neuronNumber].responses_DNA_flags[res.pattern] = (byte)((nn[res.neuronNumber].responses_DNA_flags[res.pattern] & 0b11110001) | 0b1);
-
-                if (Random.Range(0, 30) > 27) Delete(1);//удаляем из памяти младшее молодое значение с вероятностью 6% - это часть алгоритма забывания в ДНК
             }
             else
             {
@@ -206,27 +227,31 @@ public class DNA
         return false; //не могу прочитать очередь или в очереди нет ничего
     }
 
-    public void WriteDebug(string debugText="", int debugInt=0, float debugFloat = 0, string comment="")
+    public void WriteDebugOne()
     {
-        dbcmd = dbconn.CreateCommand();
-        string sqlQuery = "INSERT INTO DEBUGGING (debugText, debugInt, debugFloat, comment) VALUES ('" + debugText + "', "
-                                                                            + debugInt + ", " 
-                                                                            + "'"+debugFloat+"'" + ", '"
-                                                                            + comment + "')";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
+        structDNADebugQueue res = new structDNADebugQueue();
+        if (service.queQueryDebugWrite.TryDequeue(out res))
+        {
+            dbcmddisc = dbconn.CreateCommand();
+            string sqlQuery = "INSERT INTO DEBUGGING (debugText, debugInt, debugFloat, comment) VALUES ('" + res.dText + "', "
+                                                                                + res.dInt + ", "
+                                                                                + "'" + res.dFloat + "'" + ", '"
+                                                                                + res.dComment + "')";
+            dbcmddisc.CommandText = sqlQuery;
+            dbcmddisc.ExecuteNonQuery();
+        }
     }
 
     public void Delete(int count)
     {
-        dbcmd = dbmemory.CreateCommand();
-        dbcmd.CommandText = "delete from dna where id IN (select id from dna limit "+count.ToString() + " )";
-        dbcmd.ExecuteNonQuery();
+        dbcmdmem = dbmemory.CreateCommand();
+        dbcmdmem.CommandText = "delete from dna where id IN (select id from dna limit "+count.ToString() + " )";
+        dbcmdmem.ExecuteNonQuery();
     }
 
     public void WriteAll() //записать в базу первый в очереди запрос \ true - успешно записали
     {
-        dbcmd = dbmemory.CreateCommand();
+        dbcmdmem = dbmemory.CreateCommand();
         if (service.queQueryToDnaWrite.Count == 0) return;
 
         structDNAWriteQueue res = new structDNAWriteQueue();
@@ -250,8 +275,8 @@ public class DNA
 
         sqlQuery = sqlQuery.Remove(sqlQuery.Length- 1);
         //Debug.Log(sqlQuery);
-        dbcmd.CommandText = sqlQuery;
-        int iswrited = dbcmd.ExecuteNonQuery();
+        dbcmdmem.CommandText = sqlQuery;
+        int iswrited = dbcmdmem.ExecuteNonQuery();
 
         if (iswrited == 0)
         {
@@ -263,8 +288,6 @@ public class DNA
 
     public static NeuroNet Wake()//подъем из базы
     {
-
-
         IDbConnection dbconn;
         IDbCommand dbcmd,dbcmd2;
         IDataReader reader,reader2;
@@ -358,11 +381,8 @@ public class DNA
 
     public void Sleep(ref CellularAutamata3D ca)//хотим спать
     {
-        //надо сохранить все нейроны со всеми синапсами и выходами и все их положительные ответы
-
-        //сначала очистим таблицы
         string sqlQuery;
-
+        /*
         dbcmd = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM SYNAPSES";
         dbcmd.CommandText = sqlQuery;
@@ -372,19 +392,21 @@ public class DNA
         sqlQuery = "DELETE FROM AXONS";
         dbcmd.CommandText = sqlQuery;
         dbcmd.ExecuteNonQuery();
+        */
 
-        dbcmd = dbconn.CreateCommand();
+        dbcmddisc = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM CA";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
+        dbcmddisc.CommandText = sqlQuery;
+        dbcmddisc.ExecuteNonQuery();
 
         //пишем в таблицу КА
-        dbcmd = dbconn.CreateCommand();
+        dbcmddisc = dbconn.CreateCommand();
         int typeca = ca.is_25_emul ? 25 : 3;
         sqlQuery = "INSERT INTO CA (rule, lenght, height, width, typeca) VALUES ('" + ca.rule.rule + "', " + ca.lenght.ToString() + ", " + ca.height.ToString() + ", " + ca.width.ToString() + ", " + typeca.ToString() + " )";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
+        dbcmddisc.CommandText = sqlQuery;
+        dbcmddisc.ExecuteNonQuery();
 
+        /*
         //пишем в таблицу синапсы
         dbcmd = dbconn.CreateCommand();
         sqlQuery = "INSERT INTO SYNAPSES (neuron, synapse, i,j,k) VALUES ";
@@ -433,36 +455,37 @@ public class DNA
                 dbcmd.ExecuteNonQuery();
             }
         }
+        */
 
-        dbcmd = dbconn.CreateCommand();
+        dbcmddisc = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM DNA";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
+        dbcmddisc.CommandText = sqlQuery;
+        dbcmddisc.ExecuteNonQuery();
 
         //консолидация памяти и запись на диск
         bool atleastone = false;
         string query = "INSERT INTO DNA (neuron, pattern, response) VALUES ";
         while (true)
         {
-            dbcmd = dbmemory.CreateCommand();
-            dbcmd.CommandText = "SELECT neuron, pattern FROM DNA LIMIT 1";
-            reader = dbcmd.ExecuteReader();
-            if (reader.Read())
+            dbcmdmem = dbmemory.CreateCommand();
+            dbcmdmem.CommandText = "SELECT neuron, pattern FROM DNA LIMIT 1";
+            readermem = dbcmdmem.ExecuteReader();
+            if (readermem.Read())
             {
-                int neu = reader.GetInt32(0);
-                int pat = reader.GetInt32(1);
+                int neu = readermem.GetInt32(0);
+                int pat = readermem.GetInt32(1);
 
-                dbcmd = dbmemory.CreateCommand();
-                dbcmd.CommandText = "SELECT AVG(response) FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
-                reader = dbcmd.ExecuteReader();
-                if (reader.Read())
+                dbcmdmem = dbmemory.CreateCommand();
+                dbcmdmem.CommandText = "SELECT AVG(response) FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
+                readermem = dbcmdmem.ExecuteReader();
+                if (readermem.Read())
                 {
                     atleastone = true;
-                    query += "(" + neu.ToString() + ", " + pat.ToString() + ", " + (int)(reader.GetFloat(0)) + "),";
+                    query += "(" + neu.ToString() + ", " + pat.ToString() + ", " + (int)(readermem.GetFloat(0)) + "),";
                 }
-                dbcmd = dbmemory.CreateCommand();
-                dbcmd.CommandText = "DELETE FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
-                dbcmd.ExecuteNonQuery();
+                dbcmdmem = dbmemory.CreateCommand();
+                dbcmdmem.CommandText = "DELETE FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
+                dbcmdmem.ExecuteNonQuery();
             }
             else
             {
@@ -478,5 +501,59 @@ public class DNA
                 ic.CommandText = query;
                 ic.ExecuteNonQuery();
             }
+    }
+
+    public void SynapseUpdateOrCreateOne()
+    {
+        structDNASynAxUpdateQueue res = new structDNASynAxUpdateQueue();
+        if (service.queQuerySynWrite.TryDequeue(out res))
+        {
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "UPDATE SYNAPSES SET i=" + nn[res.n].synapses[res.h].i + ", j=" + nn[res.n].synapses[res.h].j + ", k=" + nn[res.n].synapses[res.h].k + " WHERE neuron=" + res.n + " AND synapse=" + res.h;
+            if (dbcmddisc.ExecuteNonQuery() == 0)//если такого синапса нет, мы его добавим
+            {
+                dbcmddisc = dbconn.CreateCommand();
+                dbcmddisc.CommandText = "INSERT INTO SYNAPSES (neuron, synapse,i,j,k) VALUES (" + res.n + ", " + res.h + ", " + nn[res.n].synapses[res.h].i + ", " + nn[res.n].synapses[res.h].j + ", " + nn[res.n].synapses[res.h].k + ")";
+                dbcmddisc.ExecuteNonQuery();
+            }
+        }
+    }
+    public void AxonUpdateOrCreateOne()
+    {
+        structDNASynAxUpdateQueue res = new structDNASynAxUpdateQueue();
+        if (service.queQueryAxWrite.TryDequeue(out res))
+        {
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "UPDATE AXONS SET i=" + nn[res.n].axon[res.h].i + ", j=" + nn[res.n].axon[res.h].j + ", k=" + nn[res.n].axon[res.h].k + " WHERE neuron=" + res.n + " AND axon=" + res.h;
+            if (dbcmddisc.ExecuteNonQuery() == 0)//если такого синапса нет, мы его добавим
+            {
+                dbcmddisc = dbconn.CreateCommand();
+                dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k) VALUES (" + res.n + ", " + res.h + ", " + nn[res.n].axon[res.h].i + ", " + nn[res.n].axon[res.h].j + ", " + nn[res.n].axon[res.h].k + ")";
+                dbcmddisc.ExecuteNonQuery();
+            }
+        }
+    }
+
+    public void AddNeuron(int neu)
+    {
+        dbcmddisc = dbconn.CreateCommand();
+        dbcmddisc.CommandText = "INSERT INTO NEURONS (neuron, typen) VALUES (" + neu + ", '" + nn[neu].GetTypeNeuron() + "')";
+        dbcmddisc.ExecuteNonQuery();
+
+        for (int i = 0; i < 16; i++)
+        {
+            if (nn[neu].synapses[i].i == 0 && nn[neu].synapses[i].j == 0 && nn[neu].synapses[i].k == 0) break; //далее нет синапсов
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "INSERT INTO SYNAPSES (neuron, synapse,i,j,k) VALUES (" + neu + ", " + i + ", " + nn[neu].synapses[i].i + ", " + nn[neu].synapses[i].j + ", " + nn[neu].synapses[i].k + ")";
+            dbcmddisc.ExecuteNonQuery();
+        }
+        for (int i = 0; i < 16; i++)
+        {
+            if (nn[neu].axon[i].i == 0 && nn[neu].axon[i].j == 0 && nn[neu].axon[i].k == 0) break; //далее нет 
+            dbcmddisc = dbconn.CreateCommand();
+            dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k) VALUES (" + neu + ", " + i + ", " + nn[neu].axon[i].i + ", " + nn[neu].axon[i].j + ", " + nn[neu].axon[i].k + ")";
+            dbcmddisc.ExecuteNonQuery();
+        }
+
     }
 }
