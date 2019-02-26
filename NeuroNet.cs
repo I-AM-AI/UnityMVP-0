@@ -15,7 +15,7 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
     public CellularAutamata3D ca;
 
-    Thread myThread;
+    Thread myThread1, myThread2, myThread3,myThread4, myThread5;
 
     //сеть из готовых данных (из ДНК)
     public NeuroNet(ref CellularAutamata3D cla, ref Service s, ref MAPQueue mpq, ref List<Neuron> ln, ref DNA d)
@@ -25,7 +25,11 @@ public class NeuroNet//рабочий класс - обертка, он созд
         ca = cla;
         nn = ln;
         dna = d;
-        myThread = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread1 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread2 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread3 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread4 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread5 = new Thread(new ThreadStart(DoNeuronsThread));
     }
 
     public NeuroNet(ref CellularAutamata3D cla)//рожаем произвольную сеть
@@ -174,7 +178,11 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
         dna = new DNA(ref nn,ref service);
 
-        myThread = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread1 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread2 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread3 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread4 = new Thread(new ThreadStart(DoNeuronsThread));
+        myThread5 = new Thread(new ThreadStart(DoNeuronsThread));
     }
 
 
@@ -196,10 +204,30 @@ public class NeuroNet//рабочий класс - обертка, он созд
 
     public void Do()
     {
-        if (!myThread.IsAlive)
+        if (!myThread1.IsAlive)
         {
-            myThread = new Thread(new ThreadStart(DoNeuronsThread));
-            myThread.Start();
+            myThread1 = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread1.Start();
+        }
+        if (!myThread2.IsAlive)
+        {
+            myThread2 = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread2.Start();
+        }
+        if (!myThread3.IsAlive)
+        {
+            myThread3 = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread3.Start();
+        }
+        if (!myThread4.IsAlive)
+        {
+            myThread4 = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread4.Start();
+        }
+        if (!myThread5.IsAlive)
+        {
+            myThread5 = new Thread(new ThreadStart(DoNeuronsThread));
+            myThread5.Start();
         }
     }
 
@@ -208,17 +236,20 @@ public class NeuroNet//рабочий класс - обертка, он созд
         //foreach (Neuron n in nn)
         for (int i = 0; i < nn.Count; i++)
         {
-
-            nn[i].Do();
-
-            if (Service.RandomRange(0, 10) > 5) nn[i].ForgotRAM();//приблизительно x случайных нейронов забывает потихоньку 
-            else if (Service.RandomRange(0, 10) > 6)
+            if (nn[i].ineed_do)
             {
-                if (!service.decdecdec && !service.dnadnadna)
-                    nn[i].Realign();//и еще меньше x случайных нейронов перестраивают входы и выходы, если не обчулись до сих пор
+                nn[i].Do();
+                nn[i].ineed_do = true;
+
+                if (Service.RandomRange(0, 10) > 5) nn[i].ForgotRAM();//приблизительно x случайных нейронов забывает потихоньку 
+                else if (Service.RandomRange(0, 10) > 6)
+                {
+                    if (!service.decdecdec && !service.dnadnadna)
+                        nn[i].Realign();//и еще меньше x случайных нейронов перестраивают входы и выходы, если не обчулись до сих пор
+                }
             }
         }
-       
+        //Debug.Log("87000");
     }
 
     //private void Do

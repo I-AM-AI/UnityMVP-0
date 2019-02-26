@@ -299,9 +299,11 @@ public class Neuron : NeuronBase
         return pat;
     }
 
-
+    public bool ineed_do = true;//is neuron need do (for threading)
     public void Do()
     {
+        ineed_do = false;//and comes to true on NeuroNet
+
         //нейромедиатор пополняется в каждом цикле
         if (neuromediator_val < Service.CONST_NEUROMEDIATOR_CACHE) neuromediator_val++;
 

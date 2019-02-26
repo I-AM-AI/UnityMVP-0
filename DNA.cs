@@ -360,7 +360,18 @@ public class DNA
     {
         //надо сохранить все нейроны со всеми синапсами и выходами и все их положительные ответы
 
+        //сначала очистим таблицы
         string sqlQuery;
+
+        dbcmd = dbconn.CreateCommand();
+        sqlQuery = "DELETE FROM SYNAPSES";
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
+
+        dbcmd = dbconn.CreateCommand();
+        sqlQuery = "DELETE FROM AXONS";
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
 
         dbcmd = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM CA";
@@ -370,50 +381,46 @@ public class DNA
         //пишем в таблицу КА
         dbcmd = dbconn.CreateCommand();
         int typeca = ca.is_25_emul ? 25 : 3;
-        sqlQuery = "INSERT INTO CA (rule, lenght, height, width, typeca) VALUES ('" + ca.rule.rule+"', "+ca.lenght.ToString() + ", "+ ca.height.ToString() + ", "+ca.width.ToString() + ", " + typeca.ToString() + " )";
+        sqlQuery = "INSERT INTO CA (rule, lenght, height, width, typeca) VALUES ('" + ca.rule.rule + "', " + ca.lenght.ToString() + ", " + ca.height.ToString() + ", " + ca.width.ToString() + ", " + typeca.ToString() + " )";
         dbcmd.CommandText = sqlQuery;
         dbcmd.ExecuteNonQuery();
 
         //пишем в таблицу синапсы
-        foreach (Neuron n in nn)
-        {
-            for(int i=0;i<16;i++)
-            {
-                if (n.synapses[i].i == 0 && n.synapses[i].j == 0 && n.synapses[i].k == 0) break; //далее нет синапсов
-                dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "UPDATE SYNAPSES SET i="+ n.synapses[i].i+", j="+ n.synapses[i].j + ", k="+ n.synapses[i].k + " WHERE neuron=" + n.number+ " AND synapse="+i;                
-                if(dbcmd.ExecuteNonQuery()==0)//если такого синапса нет, мы его добавим
-                {
-                    dbcmd = dbconn.CreateCommand();
-                    dbcmd.CommandText = "INSERT INTO SYNAPSES (neuron, synapse,i,j,k) VALUES ("+n.number+", "+ i+ ", " + n.synapses[i].i + ", " + n.synapses[i].j + ", " + n.synapses[i].k + ")";
-                    dbcmd.ExecuteNonQuery();
-                }
-
-            }
-        }
-
-        //пишем в таблицу аксоны
+        dbcmd = dbconn.CreateCommand();
+        sqlQuery = "INSERT INTO SYNAPSES (neuron, synapse, i,j,k) VALUES ";
         foreach (Neuron n in nn)
         {
             for (int i = 0; i < 16; i++)
             {
-                if (n.axon[i].i == 0 && n.axon[i].j == 0 && n.axon[i].k == 0) break; //далее нет синапсов
-                dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "UPDATE AXONS SET i=" + n.axon[i].i + ", j=" + n.axon[i].j + ", k=" + n.axon[i].k + " WHERE neuron=" + n.number + " AND axon=" + i;
-                if (dbcmd.ExecuteNonQuery() == 0)//если такого синапса нет, мы его добавим
-                {
-                    dbcmd = dbconn.CreateCommand();
-                    dbcmd.CommandText = "INSERT INTO AXONS (neuron, synapse,i,j,k) VALUES (" + n.number + ", " +i + ", " + n.axon[i].i + ", " + n.axon[i].j + ", " + n.axon[i].k + ")";
-                    dbcmd.ExecuteNonQuery();
-                }
+                if (n.synapses[i].i == 0 && n.synapses[i].j == 0 && n.synapses[i].k == 0) break; //далее нет синапсов
 
+                sqlQuery += "(" + n.number.ToString() + ", " + i + ", " + n.synapses[i].i.ToString() + ", " + n.synapses[i].j.ToString() + ", " + n.synapses[i].k.ToString() + "),";
             }
         }
+        sqlQuery = sqlQuery.Remove(sqlQuery.Length - 1);
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
+
+        //пишем в таблицу аксоны
+        dbcmd = dbconn.CreateCommand();
+        sqlQuery = "INSERT INTO AXONS (neuron, axon, i,j,k) VALUES ";
+        foreach (Neuron n in nn)
+        {
+            for (int i = 0; i < 16; i++)
+            {
+                if (n.axon[i].i == 0 && n.axon[i].j == 0 && n.axon[i].k == 0) break; //далее нет аксонов
+
+                sqlQuery += "(" + n.number.ToString() + ", " + i + ", " + n.axon[i].i.ToString() + ", " + n.axon[i].j.ToString() + ", " + n.axon[i].k.ToString() + "),";
+            }
+        }
+        sqlQuery = sqlQuery.Remove(sqlQuery.Length - 1);
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
 
         //пишем в таблицу нейроны
         dbcmd = dbconn.CreateCommand();
         dbcmd.CommandText = "SELECT COUNT(id) FROM NEURONS";
-        reader=dbcmd.ExecuteReader(); reader.Read();
+        reader = dbcmd.ExecuteReader(); reader.Read();
         int ncount_indisk = reader.GetInt32(0);
 
         //если есть что добавлять
@@ -422,11 +429,15 @@ public class DNA
             for (int i = ncount_indisk; i < nn.Count; i++)
             {
                 dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "INSERT INTO NEURONS (neuron, typen) VALUES ("+nn[i].number+", "+ ", '" + nn[i].GetTypeNeuron() + "')";
+                dbcmd.CommandText = "INSERT INTO NEURONS (neuron, typen) VALUES (" + nn[i].number + ", " + ", '" + nn[i].GetTypeNeuron() + "')";
                 dbcmd.ExecuteNonQuery();
             }
         }
 
+        dbcmd = dbconn.CreateCommand();
+        sqlQuery = "DELETE FROM DNA";
+        dbcmd.CommandText = sqlQuery;
+        dbcmd.ExecuteNonQuery();
 
         //консолидация памяти и запись на диск
         bool atleastone = false;
@@ -434,7 +445,7 @@ public class DNA
         while (true)
         {
             dbcmd = dbmemory.CreateCommand();
-            dbcmd.CommandText = "SELECT neuron, pattern FROM DNA LIMIT 1";            
+            dbcmd.CommandText = "SELECT neuron, pattern FROM DNA LIMIT 1";
             reader = dbcmd.ExecuteReader();
             if (reader.Read())
             {
@@ -446,15 +457,8 @@ public class DNA
                 reader = dbcmd.ExecuteReader();
                 if (reader.Read())
                 {
-                    int avg = (int)reader.GetFloat(0);
-
-                    dbcmd = dbconn.CreateCommand();
-                    dbcmd.CommandText = "UPDATE DNA SET response=" + avg + " WHERE neuron=" + neu + " AND pattern=" + pat;
-                    if (dbcmd.ExecuteNonQuery() == 0)
-                    {
-                        atleastone = true;
-                        query += "(" + neu.ToString() + ", " + pat.ToString() + ", " + avg + "),";
-                    }
+                    atleastone = true;
+                    query += "(" + neu.ToString() + ", " + pat.ToString() + ", " + (int)(reader.GetFloat(0)) + "),";
                 }
                 dbcmd = dbmemory.CreateCommand();
                 dbcmd.CommandText = "DELETE FROM DNA WHERE neuron=" + neu.ToString() + " AND pattern=" + pat.ToString();
@@ -467,14 +471,12 @@ public class DNA
         }
 
         //переписываем все из памяти на диск
-        if(atleastone)
-        using (IDbCommand ic = dbconn.CreateCommand())
-        {
-            query = query.Remove(query.Length - 1);
-            ic.CommandText = query;
-            ic.ExecuteNonQuery();            
-        }
-
-
+        if (atleastone)
+            using (IDbCommand ic = dbconn.CreateCommand())
+            {
+                query = query.Remove(query.Length - 1);
+                ic.CommandText = query;
+                ic.ExecuteNonQuery();
+            }
     }
 }
