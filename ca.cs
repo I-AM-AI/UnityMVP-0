@@ -292,7 +292,7 @@ namespace CellularAutamata
             {
                 for(short j=0;j<height;j++)
                 {
-                    for (short k = 1; k < width-1;k++)//1;-1 - потому что там входы микрофона
+                    for (short k = 0; k < width;k++)//1;-1 - потому что там входы микрофона
                     {
                         byte n = CountNeigh25(i, j, k);//кол-во живых соседей
                         if (rule.CheckBorn(n) && cell[i, j, k] == 0)//может родиться только если мертвая сейчас!!!!
@@ -397,7 +397,7 @@ namespace CellularAutamata
                 //тогда эти нижние циклы в функцию потока засунуть. Мы пока одним потоком посчитаем
                 for (short j = 0; j < height; j++)
                 {
-                    for (short k = 1; k < width - 1; k++)//1;-1 - потому что там входы микрофона
+                    for (short k = 0; k < width; k++)
                     {
                         byte n = CountNeigh25(i, j, k);//кол-во живых соседей
                         if (rule.CheckBorn(n) && cell[i,j,k]==0)//может родиться только если мертвая сейчас!!!!
