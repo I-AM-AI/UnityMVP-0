@@ -66,7 +66,9 @@ public class DNA
    
     public DNA(ref List<Neuron> n, ref Service s, bool usebase=false)
     {
-        string conn = "URI=file:" + Application.dataPath + "/Neurons.db";
+        string conn;
+        if (Application.isEditor) conn = "URI=file:" + Application.dataPath + "/../Neurons.db";
+        else conn = "URI=file:" + Application.dataPath + "/Neurons.db";
         
         dbconn = (IDbConnection)new SqliteConnection(conn);
         dbconn.Open(); //Open connection to the database.   
@@ -101,7 +103,7 @@ public class DNA
                     re = readerdisc.GetInt16(2);
                     query += "(" + ne.ToString() + ", " + pa.ToString() + ", " + re.ToString() + "),";
                     //заполняем значениями ответов из ДНК только % случайных ответов нейронов (остальное пусть вспоминает, если надо)
-                    if ((usebase && Random.Range(0,100)>10) || re>=Service.CONST_DNA_RESPONSE_TO_WAKE)//если же ответ большой, он сразу попадает и не удаляется, но может переобучиться
+                    if ((usebase && Random.Range(0,100)>10) || re>=s.vCONST_DNA_RESPONSE_TO_WAKE)//если же ответ большой, он сразу попадает и не удаляется, но может переобучиться
                     {
                         //*
                         n[ne].responses[pa] = re;
@@ -118,6 +120,99 @@ public class DNA
             }
         }
 
+        //считываем сеттингсы для работы сети
+        dbcmddisc = dbconn.CreateCommand();
+        dbcmddisc.CommandText = "select name, intVal, floatVal, stringVal from SETTINGS";//
+        readerdisc = dbcmddisc.ExecuteReader();
+        while(readerdisc.Read())
+        {
+            string name = readerdisc.GetString(0);
+            switch(name)
+            {
+                case "vconst_hypohpise_flow_change":
+                    s.vconst_hypohpise_flow_change = readerdisc.GetFloat(2);
+                    break;
+                case "vconst_hypohpise_flow_change_hesteresis":
+                    s.vconst_hypohpise_flow_change_hesteresis = readerdisc.GetFloat(2);
+                    break;
+                case "vconst_hyppocamp_start":
+                    s.vconst_hyppocamp_start = readerdisc.GetFloat(2);
+                    break;
+                case "vconst_hyppo_ave":
+                    s.vconst_hyppo_ave = readerdisc.GetInt32(1);
+                    break;
+                case "vconst_hyppocamp_stop":
+                    s.vconst_hyppocamp_stop = readerdisc.GetFloat(2);
+                    break;
+                case "vCONST_HYPPO_TIMESTART":
+                    s.vCONST_HYPPO_TIMESTART = readerdisc.GetFloat(2);
+                    break;
+                case "vconst_spikes_write_DNA":
+                    s.vconst_spikes_write_DNA = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_spikes_gennew_in":
+                    s.vconst_spikes_gennew_in = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_spikes_gennew_out":
+                    s.vconst_spikes_gennew_out = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_spikes_gennew_neuron":
+                    s.vconst_spikes_gennew_neuron = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_min":
+                    s.vconst_min = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_max":
+                    s.vconst_max = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_first_time":
+                    s.vconst_first_time = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_dna_search_add":
+                    s.vconst_dna_search_add = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_dna_search_dec":
+                    s.vconst_dna_search_dec = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_del_patern":
+                    s.vconst_del_patern = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_dec_MAP":
+                    s.vconst_dec_MAP = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_MAP_teach_end":
+                    s.vconst_MAP_teach_end = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_dec_by_time":
+                    s.vconst_dec_by_time = readerdisc.GetInt16(1);
+                    break;
+                case "vconst_hypo_divide":
+                    s.vconst_hypo_divide = readerdisc.GetFloat(2);
+                    break;
+                case "vconst_timesLive_before_realign":
+                    s.vconst_timesLive_before_realign = readerdisc.GetInt16(1);
+                    break;
+                case "vCONST_DNA_RESPONSE_TO_WAKE":
+                    s.vCONST_DNA_RESPONSE_TO_WAKE = readerdisc.GetInt16(1);
+                    break;
+                case "vCONST_NEUROMEDIATOR_CACHE":
+                    s.vCONST_NEUROMEDIATOR_CACHE = readerdisc.GetByte(1);
+                    break;
+                case "vCONST_NEUROMEDIATOR_LOW":
+                    s.vCONST_NEUROMEDIATOR_LOW = readerdisc.GetByte(1);
+                    break;
+                case "vCONST_FORGOT_RAM_PERCENT":
+                    s.vCONST_FORGOT_RAM_PERCENT = readerdisc.GetInt16(1);
+                    break;
+                case "vCONST_REALIGN_PERCENT":
+                    s.vCONST_REALIGN_PERCENT = readerdisc.GetInt16(1);
+                    break;
+                case "vCONST_AXBRAKE_SPIKE_CHANGE":
+                    s.vCONST_AXBRAKE_SPIKE_CHANGE = readerdisc.GetInt16(1);
+                    break;
+
+            }
+        }
 
         nn = n;
         service = s;
@@ -292,7 +387,9 @@ public class DNA
         IDbCommand dbcmd,dbcmd2;
         IDataReader reader,reader2;
 
-        string conn = "URI=file:" + Application.dataPath + "/Neurons.db";
+        string conn;
+        if (Application.isEditor) conn = "URI=file:" + Application.dataPath + "/../Neurons.db";
+        else conn = "URI=file:" + Application.dataPath + "/Neurons.db";
 
         dbconn = (IDbConnection)new SqliteConnection(conn);
         dbconn.Open(); //Open connection to the database.   
@@ -319,13 +416,7 @@ public class DNA
             cla = new CellularAutamata3D(le, he, wi, rule, true);
 
         reader.Close();
-        /*
-                dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "SELECT count(id) FROM NEURONS";
-                reader = dbcmd.ExecuteReader();
-                reader.Read();
-                int ncount = reader.GetInt32(0);
-          */
+
         List<Neuron> nn = new List<Neuron>();
 
         dbcmd = dbconn.CreateCommand();
@@ -348,6 +439,10 @@ public class DNA
             {
                 nn.Add(new NeuronDendSpike(nnumber, ref cla, ref mq, ref s));
             }
+            else if (nt == 'r')//дифферентный
+            {
+                nn.Add(new NeuronDiff(nnumber, ref cla, ref mq, ref s));
+            }
         }
 
         dbcmd2 = dbconn.CreateCommand();
@@ -360,12 +455,12 @@ public class DNA
         }
 
         dbcmd2 = dbconn.CreateCommand();
-        dbcmd2.CommandText = "SELECT neuron,axon,i,j,k FROM AXONS ORDER BY neuron ASC";
+        dbcmd2.CommandText = "SELECT neuron,axon,i,j,k,typea FROM AXONS ORDER BY neuron ASC";
         reader2 = dbcmd2.ExecuteReader();
 
         while (reader2.Read())
         {
-            Coord ax = new Coord(); ax.i = reader2.GetInt16(2); ax.j = reader2.GetInt16(3); ax.k = reader2.GetInt16(4);
+            Coord ax = new Coord(); ax.i = reader2.GetInt16(2); ax.j = reader2.GetInt16(3); ax.k = reader2.GetInt16(4); ax.type = reader2.GetByte(5);
             nn[reader2.GetInt32(0)].SetAx(reader2.GetInt16(1), ax);
         }
 
@@ -381,18 +476,7 @@ public class DNA
 
     public void Sleep(ref CellularAutamata3D ca)//хотим спать
     {
-        string sqlQuery;
-        /*
-        dbcmd = dbconn.CreateCommand();
-        sqlQuery = "DELETE FROM SYNAPSES";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
-
-        dbcmd = dbconn.CreateCommand();
-        sqlQuery = "DELETE FROM AXONS";
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
-        */
+        string sqlQuery;        
 
         dbcmddisc = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM CA";
@@ -405,58 +489,7 @@ public class DNA
         sqlQuery = "INSERT INTO CA (rule, lenght, height, width, typeca) VALUES ('" + ca.rule.rule + "', " + ca.lenght.ToString() + ", " + ca.height.ToString() + ", " + ca.width.ToString() + ", " + typeca.ToString() + " )";
         dbcmddisc.CommandText = sqlQuery;
         dbcmddisc.ExecuteNonQuery();
-
-        /*
-        //пишем в таблицу синапсы
-        dbcmd = dbconn.CreateCommand();
-        sqlQuery = "INSERT INTO SYNAPSES (neuron, synapse, i,j,k) VALUES ";
-        foreach (Neuron n in nn)
-        {
-            for (int i = 0; i < 16; i++)
-            {
-                if (n.synapses[i].i == 0 && n.synapses[i].j == 0 && n.synapses[i].k == 0) break; //далее нет синапсов
-
-                sqlQuery += "(" + n.number.ToString() + ", " + i + ", " + n.synapses[i].i.ToString() + ", " + n.synapses[i].j.ToString() + ", " + n.synapses[i].k.ToString() + "),";
-            }
-        }
-        sqlQuery = sqlQuery.Remove(sqlQuery.Length - 1);
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
-
-        //пишем в таблицу аксоны
-        dbcmd = dbconn.CreateCommand();
-        sqlQuery = "INSERT INTO AXONS (neuron, axon, i,j,k) VALUES ";
-        foreach (Neuron n in nn)
-        {
-            for (int i = 0; i < 16; i++)
-            {
-                if (n.axon[i].i == 0 && n.axon[i].j == 0 && n.axon[i].k == 0) break; //далее нет аксонов
-
-                sqlQuery += "(" + n.number.ToString() + ", " + i + ", " + n.axon[i].i.ToString() + ", " + n.axon[i].j.ToString() + ", " + n.axon[i].k.ToString() + "),";
-            }
-        }
-        sqlQuery = sqlQuery.Remove(sqlQuery.Length - 1);
-        dbcmd.CommandText = sqlQuery;
-        dbcmd.ExecuteNonQuery();
-
-        //пишем в таблицу нейроны
-        dbcmd = dbconn.CreateCommand();
-        dbcmd.CommandText = "SELECT COUNT(id) FROM NEURONS";
-        reader = dbcmd.ExecuteReader(); reader.Read();
-        int ncount_indisk = reader.GetInt32(0);
-
-        //если есть что добавлять
-        if (ncount_indisk < nn.Count)
-        {
-            for (int i = ncount_indisk; i < nn.Count; i++)
-            {
-                dbcmd = dbconn.CreateCommand();
-                dbcmd.CommandText = "INSERT INTO NEURONS (neuron, typen) VALUES (" + nn[i].number + ", " + ", '" + nn[i].GetTypeNeuron() + "')";
-                dbcmd.ExecuteNonQuery();
-            }
-        }
-        */
-
+        
         dbcmddisc = dbconn.CreateCommand();
         sqlQuery = "DELETE FROM DNA";
         dbcmddisc.CommandText = sqlQuery;
@@ -525,10 +558,10 @@ public class DNA
         {
             dbcmddisc = dbconn.CreateCommand();
             dbcmddisc.CommandText = "UPDATE AXONS SET i=" + nn[res.n].axon[res.h].i + ", j=" + nn[res.n].axon[res.h].j + ", k=" + nn[res.n].axon[res.h].k + " WHERE neuron=" + res.n + " AND axon=" + res.h;
-            if (dbcmddisc.ExecuteNonQuery() == 0)//если такого синапса нет, мы его добавим
+            if (dbcmddisc.ExecuteNonQuery() == 0)//если такого нет, мы его добавим
             {
                 dbcmddisc = dbconn.CreateCommand();
-                dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k) VALUES (" + res.n + ", " + res.h + ", " + nn[res.n].axon[res.h].i + ", " + nn[res.n].axon[res.h].j + ", " + nn[res.n].axon[res.h].k + ")";
+                dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k, typea) VALUES (" + res.n + ", " + res.h + ", " + nn[res.n].axon[res.h].i + ", " + nn[res.n].axon[res.h].j + ", " + nn[res.n].axon[res.h].k + ", " + nn[res.n].axon[res.h].type + ")";
                 dbcmddisc.ExecuteNonQuery();
             }
         }
@@ -551,7 +584,7 @@ public class DNA
         {
             if (nn[neu].axon[i].i == 0 && nn[neu].axon[i].j == 0 && nn[neu].axon[i].k == 0) break; //далее нет 
             dbcmddisc = dbconn.CreateCommand();
-            dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k) VALUES (" + neu + ", " + i + ", " + nn[neu].axon[i].i + ", " + nn[neu].axon[i].j + ", " + nn[neu].axon[i].k + ")";
+            dbcmddisc.CommandText = "INSERT INTO AXONS (neuron, axon,i,j,k, typea) VALUES (" + neu + ", " + i + ", " + nn[neu].axon[i].i + ", " + nn[neu].axon[i].j + ", " + nn[neu].axon[i].k + ", " + nn[neu].axon[i].type + ")";
             dbcmddisc.ExecuteNonQuery();
         }
 

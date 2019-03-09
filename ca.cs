@@ -292,7 +292,7 @@ namespace CellularAutamata
             {
                 for(short j=0;j<height;j++)
                 {
-                    for (short k = 0; k < width;k++)//1;-1 - потому что там входы микрофона
+                    for (short k = 0; k < width;k++)
                     {
                         byte n = CountNeigh25(i, j, k);//кол-во живых соседей
                         if (rule.CheckBorn(n) && cell[i, j, k] == 0)//может родиться только если мертвая сейчас!!!!
@@ -320,15 +320,9 @@ namespace CellularAutamata
                     }
                 }
             }
-            //lock (syncObject)//для мультитрединга
-            {
-                for (short i = 0; i < lenght; i++)
-                    for (short j = 0; j < height; j++)
-                    { next[i, j, 0] = cell[i, j, 0]; next[i, j, width-1] = cell[i, j, width - 1]; } //пока обновляли коробку, данные с микрофона могли измениться
-
-                cell = next;//и теперь массив ссылается сюда 
-            }           
-
+ 
+            cell = next;//и теперь массив ссылается сюда 
+ 
             stepfinished = true;
             queChangeAgeFunc();
         }
@@ -619,7 +613,7 @@ namespace CellularAutamata
                 //тогда эти нижние циклы в функцию потока засунуть. Мы пока одним потоком посчитаем
                 for (short j = 0; j < height; j++)
                 {
-                    for (short k = 1; k < width - 1; k++)//1;-1 - потому что там входы микрофона
+                    for (short k = 0; k < width; k++)
                     {
                         byte n = CountNeigh(i, j, k);//кол-во живых соседей
                         if (rule.CheckBorn(n))
