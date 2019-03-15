@@ -29,7 +29,7 @@ public class Gen : MonoBehaviour
 
     private PianoOut po;
 
-    private Client client;
+    //private Client client;
     private Server server;
 
     private Dictionary<int, ClientInfo> clients;
@@ -125,11 +125,6 @@ public class Gen : MonoBehaviour
     {
         if (server.Active)
         {
-            if (Input.GetKeyDown(KeyCode.RightAlt))
-            {
-
-                server.Broadcast(new byte[] { 0xf0, 0xf0, 0x01, 0x02, 0x03, 0x04 });
-            }
 
             // show all new messages
             Telepathy.Message msg;
@@ -511,7 +506,8 @@ public class Gen : MonoBehaviour
         // the client/server threads won't receive the OnQuit info if we are
         // running them in the Editor. they would only quit when we press Play
         // again later. this is fine, but let's shut them down here for consistency
-        if(client!=null) client.Disconnect();
+        
+        //if(client!=null) client.Disconnect();
         server.Stop();
     }
 

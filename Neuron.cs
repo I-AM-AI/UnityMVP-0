@@ -167,9 +167,9 @@ public class Service
     public  float vCONST_HYPPO_TIMESTART = 600; //через сколько времени возможно включение торможения в секундах
 
     public  short vconst_spikes_write_DNA = 17;           //ответы начинают запоминаться в ДНК при сигнале выше этого
-    public  short vconst_spikes_gennew_in = 347;        //количество спайков, при достижении которого добавляется новый синапс
-    public  short vconst_spikes_gennew_out = 436;      //количество спайков, при достижении которого добавляется новый выход на аксоне
-    public  short vconst_spikes_gennew_neuron = 745;  //количество спайков, при котором рождается новый нейрон
+    public  short vconst_spikes_gennew_in = 1347;        //количество спайков, при достижении которого добавляется новый синапс
+    public  short vconst_spikes_gennew_out = 1936;      //количество спайков, при достижении которого добавляется новый выход на аксоне
+    public  short vconst_spikes_gennew_neuron = 5745;  //количество спайков, при котором рождается новый нейрон
     public  short vconst_min = -500;                      //минимальный ответ нейрона
     public  short vconst_max = 32000;                  //максимальный ответ нейрона
 
@@ -404,49 +404,68 @@ public class Neuron : NeuronBase
                     responses[pat] = (short)(responses[pat] * service.vconst_hypo_divide) ;
                 }
 
-                //добавляем в очереди групп МАП метку времени и номер нейрона
-                foreach (short m in MAPa)//m пробегает номера групп, в которых нейрон строит ассоциации
-                {
-                    mapQue.que[m].Enqueue(new structMAPqueue(number, service.Time_realtimeSinceStartup, responses[pat]));
-                }
-
                 //рисуем в клеточном автомате по всем выходам активирующего аксона и тормозим тормозными
                 if (neuromediator_val > service.vCONST_NEUROMEDIATOR_LOW)
                 {
-                    neuromediator_val >>= 1; //половина нейромедиатора выперднула
-
-                    for (int i = 0; i < 16; i++)
+                    short neuromediator = GetAge(responses[pat]);//эта функция ставит в соответствие силы ответа величине, отдаваемой в клетку КА
+                    if (neuromediator > ca.rule.max_age)
                     {
-                        if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) break; //больше выходов аксона нет
+                        /* Адаптация - этот патерн слишком часто повторяется, это фон, к нему надо привыкнуть. Нельзя отвечать, пока не измениться входной сигнал
+                         *   или еще что. Тем не менее, поскольку активность высока, нейропластичность в норме и рождение новых синапсов с аксонами также.
+                         *   Кстати, добавление синапсов может сбить наростание сигнала, поскольку синапс внесет коррективу во входные данные
+                         *   И новый аксон может также внести коррективы.
+                         *   И новый нейрон тоже))))
+                         *   
+                         *   Это адаптация на самом низком уровне. 
+                         *   Адаптация на более высоком уровне может быть заклчена в торможении этого нейрона эфферентными слоями.
+                         *   
+                         *   Как происходит адаптация на низком уровне? Сила ответа продолжает увеличиваться, но нейрон ничего не отвечает на этот паттерн. Увеличение сигнала
+                         *   приведет к появлению новых синапсов и аксонов и даже нейронов
+                         */
+                    }
+                    else //РАБОЧИЙ РЕЖИМ НЕЙРОНА - ЗДЕСЬ ОН СТРЕЛЯЕТ
+                    { 
+                        neuromediator_val >>= 1; //половина нейромедиатора выперднула
 
-                        short oldval = ca.cell[axon[i].i, axon[i].j, axon[i].k];
-                        if (axon[i].type==1)//активирующий аксон
-                        { 
-                            short newval = (short)(GetAge(responses[pat]) + i); //до каждого следующего выхода аксона доходит меньше активности, т.к. 0-ой аксон смамый ранний, он дольше в системе и оброс большим кол-вом швановых клеток, везикул и т.п.
-                            if (oldval == 0)//в КА пустая клетка
-                                ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, newval);
-                            else
-                            {//в КА не пустая клетка
-                                ca.ChangeAgeByNeuron(axon[i].i, axon[i].j, axon[i].k, (short)((newval + oldval) / 2));//функция выпускает немного нейромедиатора в соседнюю случайную клетку
-                            }
-                        }
-                        else //тормозной аксон
+                        //добавляем в очереди групп МАП метку времени и номер нейрона
+                        foreach (short m in MAPa)//m пробегает номера групп, в которых нейрон строит ассоциации
                         {
-                            if (oldval == 0)
-                            {
-                                //тормозим, тормозим, а нечего нам тормозить!
-                                if (axon[i].v++ > service.vCONST_AXBRAKE_SPIKE_CHANGE)
-                                { DoBrakeAxonPlasticity(i); axon[i].v = 0; }
-                            }
-                            else
-                            {
-                                axon[i].v = 0;
-                                ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, 0); //тормозим 
-                            }
+                            mapQue.que[m].Enqueue(new structMAPqueue(number, service.Time_realtimeSinceStartup, responses[pat]));
                         }
 
-                        //если аксон стреляет в никуда, он каждый цикл своей активности меняет свое положение, пока не найдет какой-то синапс какого-то нейрона
-                        if (axon[i].v != 1 && axon[i].type==1) DoAxonPlasticity(i);
+                        for (int i = 0; i < 16; i++)
+                        {
+                            if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) break; //больше выходов аксона нет
+
+                            short oldval = ca.cell[axon[i].i, axon[i].j, axon[i].k];
+                            if (axon[i].type == 1)//активирующий аксон
+                            {
+                                short newval = (short)(neuromediator + i); //до каждого следующего выхода аксона доходит меньше активности, т.к. 0-ой аксон смамый ранний, он дольше в системе и оброс большим кол-вом швановых клеток, везикул и т.п.
+                                if (oldval == 0)//в КА пустая клетка
+                                    ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, newval);
+                                else
+                                {//в КА не пустая клетка
+                                    ca.ChangeAgeByNeuron(axon[i].i, axon[i].j, axon[i].k, (short)((newval + oldval) / 2));//функция выпускает немного нейромедиатора в соседнюю случайную клетку
+                                }
+                            }
+                            else //тормозной аксон
+                            {
+                                if (oldval == 0)
+                                {
+                                    //тормозим, тормозим, а нечего нам тормозить!
+                                    if (axon[i].v++ > service.vCONST_AXBRAKE_SPIKE_CHANGE)
+                                    { DoBrakeAxonPlasticity(i); axon[i].v = 0; }
+                                }
+                                else
+                                {
+                                    axon[i].v = 0;
+                                    ca.ChangeAge(axon[i].i, axon[i].j, axon[i].k, 0); //тормозим 
+                                }
+                            }
+
+                            //если аксон стреляет в никуда, он каждый цикл своей активности меняет свое положение, пока не найдет какой-то синапс какого-то нейрона
+                            if (axon[i].v != 1 && axon[i].type == 1) DoAxonPlasticity(i);
+                        }
                     }
 
                     //для гипофиза, пока его нет, его функцию заменяют сервисы, отслеживающие активность всей сети
@@ -484,9 +503,10 @@ public class Neuron : NeuronBase
                     responses_DNA_flags[pat] |= 0b1000; //ждем запись
                 }
 
-                if (responses[pat] >= service.vconst_max)//больше не бывает
+                if (responses[pat] > service.vconst_max)//больше не бывает
                 {
-                    responses[pat] = (short)(responses[pat] >> 1);
+                    //responses[pat] = (short)(responses[pat] >> 1);
+                    responses[pat] = service.vconst_max; //ГИПЕРАДАПТИРОВАННЫЙ СИГНАЛ, НЕЙРОН БУДЕТ ОЧЕНЬ ДОЛГО остывать, прежде чем снова ответит на это. Сон, кстати, это снимет легко.
                 }
 
                 if (responses[pat] % service.vconst_spikes_gennew_in == 0 & !service.decdecdec)//добавляем синапс в нейрон
@@ -522,8 +542,13 @@ public class Neuron : NeuronBase
                             axon[i].j = (short)(Service.RandomRange(0, ca.height));
                             axon[i].k = (short)(Service.RandomRange(0, ca.width));
 
-                            //синапс 0,0,0 в КА - служебный, у него нет нейронов
-                            if (axon[i].i == 0 && axon[i].j == 0 && axon[i].k == 0) axon[i].k = 1;
+                            //добавляем именно тормозной аксон, потому что мы капец активны
+                            axon[i].type = 0; 
+
+                            //аксонов на стенках нет - это входы
+                            if (axon[i].i == 0) axon[i].i = 1;
+                            if (axon[i].j == 0) axon[i].j = 1;
+                            if (axon[i].k == 0) axon[i].k = 1;
                             //сразу добавим в базу
                             service.queQueryAxWrite.Enqueue(new structDNASynAxUpdateQueue(number, i));
                             break;
@@ -612,9 +637,9 @@ public class Neuron : NeuronBase
     }
 
     //преобразует значение ответа нейрона в возраст клетки КА
-    private int GetAge(int resp)
+    private short GetAge(int resp)
     {
-        return (int)(Mathf.Log(resp) * 5.5f);
+        return (short)(Mathf.Log(resp+1) * ca.rule.max_age/5);
     }
 
     //пассивность нейрона... выполняем МАП-обучение и т.п.
@@ -685,8 +710,6 @@ public class Neuron : NeuronBase
 
     public void ForgotRAM()
     {
-
-        
         for(int i=1;i<=65535;i++)//пробегаем все ответы, кроме ответа на 0-патерн, его нет!
         {
             if (responses[i] != 0)//если ответ вообще существует
